@@ -52,3 +52,5 @@ htmlcov/
 
 # Private exercise correction corpus (L0)
 /.local/exercise-correction/
+
+/.local/engine-staging/

@@ -9,6 +9,8 @@ import random
 from datetime import datetime, timezone
 from typing import Any
 
+from exercise_availability import available_exercises
+
 from recommandation import (
     _tri_fusion_par_ratio,
     _choisir_difficulte,
@@ -158,8 +160,7 @@ def recommander_exercice_ds(
     # Exercices couvrant au moins une compétence du DS
     # On charge tous les exercices et on filtre en Python (pas de filtre array overlap natif)
     r_ex = (
-        supabase_client.table("exercises")
-        .select("id, competences, difficulty")
+        available_exercises(supabase_client, "id, competences, difficulty")
         .execute()
     )
     competence_ids_set = set(normalized_competence_ids)
@@ -231,13 +232,14 @@ def recommander_exercice_ds(
             return None
         # Récupère le tableau complet des compétences de l'exercice
         ex_data = (
-            supabase_client.table("exercises")
-            .select("competences")
+            available_exercises(supabase_client, "competences")
             .eq("id", eid)
             .maybe_single()
             .execute()
         )
-        raw_competences = _extract_exercise_competences(ex_data.data or {})
+        if not ex_data.data:
+            return None
+        raw_competences = _extract_exercise_competences(ex_data.data)
         # Convertir noms d'affichage → ids, puis filtrer aux compétences du DS
         ex_competences_ids = [name_to_id.get(c, c) for c in raw_competences]
         ex_competences_ids = [c for c in ex_competences_ids if c in competence_ids_set]

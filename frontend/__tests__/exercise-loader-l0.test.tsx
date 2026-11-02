@@ -1,7 +1,7 @@
 import React from "react";
 import { create, act, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const db = vi.hoisted(() => ({writes: [] as {operation:string,payload?:unknown}[], from:vi.fn(), getUser:vi.fn()}));
+const db = vi.hoisted(() => ({writes: [] as {operation:string,payload?:unknown}[], from:vi.fn(), getUser:vi.fn(), unavailable:false, filters:[] as string[]}));
 vi.mock("../app/lib/supabase",()=>({supabase:{from:db.from,auth:{getUser:db.getUser}}}));
 vi.mock("../app/contexts/AuthContext",()=>({useAuth:()=>({isGuest:false})}));
 vi.mock("../app/hooks/useGuestMode",()=>({GUEST_EXERCISE_LIMIT:5,useGuestMode:()=>({getGuestAttemptCount:vi.fn()})}));
@@ -12,12 +12,12 @@ vi.mock("../app/components/Exercise/ExerciseRenderer",()=>({default:(props:any)=
 import ExerciseLoader from "../app/components/Exercise/ExerciseLoader";
 let mounted: ReactTestRenderer | undefined;
 beforeEach(()=>{
-  db.writes.length=0;
+  db.writes.length=0; db.filters.length=0; db.unavailable=false;
   db.getUser.mockResolvedValue({data:{user:{id:"synthetic"}}});
   db.from.mockImplementation((table:string)=>{
-    const result={data:table==="exercises"?{id:1,title:"Synthetic",difficulty:"easy",competences:[],content:{
-      variables:[],elements:[{id:1,type:"question",content:{correctAnswer:"2",answerFormat:"number"}}]}}:{id:7},error:null};
-    const chain:any={select:()=>chain,eq:()=>chain,maybeSingle:()=>Promise.resolve(result),single:()=>Promise.resolve(result),
+    const result={data:table==="exercises"?(db.unavailable?null:{id:1,title:"Synthetic",difficulty:"easy",competences:[],content:{
+      variables:[],elements:[{id:1,type:"question",content:{correctAnswer:"2",answerFormat:"number"}}]}}):{id:7},error:null};
+    const chain:any={select:()=>chain,is:()=>chain,or:(filter:string)=>{db.filters.push(filter);return chain;},eq:()=>chain,maybeSingle:()=>Promise.resolve(result),single:()=>Promise.resolve(result),
       insert:(payload:unknown)=>{db.writes.push({operation:"insert",payload});return chain;},
       update:(payload:unknown)=>{db.writes.push({operation:"update",payload});return chain;},
       delete:()=>{db.writes.push({operation:"delete"});return chain;},
@@ -31,6 +31,17 @@ async function mount(props: Record<string,unknown>={}) {
   return mounted!;
 }
 describe("L0 / real loader, persistence and child renderer mocked",()=>{
+  it("filters a direct exercise ID even on a student screen used by an Admin",async()=>{
+    await mount();
+    expect(db.filters).toEqual(["catalog_id.is.null,active_version_id.not.is.null"]);
+  });
+  it("does not render or persist an exercise excluded by the reader",async()=>{
+    db.unavailable=true;
+    const r=await mount({trackAbandon:true});
+    expect(r.root.findAllByProps({"data-testid":"renderer"})).toHaveLength(0);
+    expect(db.writes).toEqual([]);
+    expect(db.filters).toEqual(["catalog_id.is.null,active_version_id.not.is.null"]);
+  });
   it("Passer before any answer calls onNextClick(false)",async()=>{
     const next=vi.fn().mockResolvedValue(undefined);const r=await mount({onNextClick:next});
     const skip=r.root.findAllByType("button").find(b=>b.children.includes("Passer"))!;

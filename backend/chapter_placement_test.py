@@ -9,6 +9,8 @@ import logging
 import random
 from typing import Any
 
+from exercise_availability import available_exercises
+
 from settings.competence_settings import (
     CHAPTER_DB_ALIASES,
     get_competences,
@@ -73,7 +75,9 @@ def _get_first_test_exercise(
         return None
     ex_id = random.choice(ids)
     diff_to_level = {"easy": 0, "medium": 1, "hard": 2}
-    r = supabase_client.table("exercises").select("id, difficulty, competences").eq("id", ex_id).execute()
+    r = available_exercises(supabase_client, "id, difficulty, competences").eq("id", ex_id).execute()
+    if not r.data:
+        return None
     row = (r.data or [{}])[0] if r.data else {}
     diff = row.get("difficulty", "easy")
     level = diff_to_level.get(diff, 0)
@@ -192,7 +196,9 @@ def _restore_test_exercise_from_state(
         )
         return None
     
-    r = supabase_client.table("exercises").select("id, difficulty, competences").eq("id", ex_id).execute()
+    r = available_exercises(supabase_client, "id, difficulty, competences").eq("id", ex_id).execute()
+    if not r.data:
+        return None
     row = (r.data or [{}])[0] if r.data else {}
     diff = row.get("difficulty", "easy")
     
@@ -256,9 +262,7 @@ def fetch_or_start_test(
 
     competences = get_competences(chapter=ch)
     chapters_to_try = CHAPTER_DB_ALIASES.get(ch, [ch])
-    q_ex = supabase_client.table("exercises").select(
-        "id, competences, difficulty, chapter"
-    )
+    q_ex = available_exercises(supabase_client, "id, competences, difficulty, chapter")
     if len(chapters_to_try) == 1:
         q_ex = q_ex.eq("chapter", chapters_to_try[0])
     else:
@@ -380,9 +384,7 @@ def get_next_test_exercise(
         return None
 
     chapters_to_try = CHAPTER_DB_ALIASES.get(ch, [ch])
-    q_ex = supabase_client.table("exercises").select(
-        "id, competences, difficulty, chapter"
-    )
+    q_ex = available_exercises(supabase_client, "id, competences, difficulty, chapter")
     if len(chapters_to_try) == 1:
         q_ex = q_ex.eq("chapter", chapters_to_try[0])
     else:
@@ -477,7 +479,9 @@ def get_next_test_exercise(
         on_conflict="user_id,chapter",
     ).execute()
 
-    r = supabase_client.table("exercises").select("difficulty").eq("id", ex_id).execute()
+    r = available_exercises(supabase_client, "difficulty").eq("id", ex_id).execute()
+    if not r.data:
+        return None
     diff = (r.data or [{}])[0].get("difficulty", "easy") if r.data else "easy"
 
     logger.info(
@@ -490,7 +494,9 @@ def get_next_test_exercise(
     )
 
     # Get competences array from exercise
-    ex_data = supabase_client.table("exercises").select("competences").eq("id", ex_id).maybe_single().execute()
+    ex_data = available_exercises(supabase_client, "competences").eq("id", ex_id).maybe_single().execute()
+    if not ex_data.data:
+        return None
     exercise_competences = ex_data.data.get("competences") if ex_data.data else []
     if not isinstance(exercise_competences, list):
         exercise_competences = [competence_next] if competence_next else []

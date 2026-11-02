@@ -52,7 +52,7 @@ function DSExercicesPage() {
   }, [dsId, user, authLoading]);
 
   const handleNextClick = useCallback(
-    async (hasErrors: boolean) => {
+    async (hasErrors: boolean,engineSessionId?:string) => {
       const rec = currentRecommendation.current;
       if (!rec) return;
 
@@ -64,9 +64,14 @@ function DSExercicesPage() {
           rec.competences,
           !hasErrors,
           rec.difficulty,
+          engineSessionId,
         );
       } catch (e) {
         console.error("[DS Exercices] submitDSAnswer error:", e);
+        if(engineSessionId) {
+          setError("La réponse n’a pas pu être enregistrée. Réessayez.");
+          throw e;
+        }
       }
 
       // Charge la prochaine recommandation
@@ -195,6 +200,7 @@ function DSExercicesPage() {
             )
           ) : recommendation ? (
             <ExerciseLoader
+              dsId={dsId}
               key={`ds-exo-${recommendation.exercise_id}-${nextKey}`}
               exerciseId={String(recommendation.exercise_id)}
               competenceId={recommendation.competence_id}

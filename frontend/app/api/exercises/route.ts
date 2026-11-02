@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { AVAILABLE_EXERCISES_FILTER } from "../../lib/exerciseAvailability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ function getCorsHeaders(request?: Request): HeadersInit {
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, x-admin-secret",
     "Access-Control-Allow-Credentials": "true",
@@ -64,6 +65,10 @@ const getSupabaseAdmin = () => {
 
 // --- GET : Authentifié ---
 export async function GET(request: Request) {
+  if (new URL(request.url).searchParams.get("auth") === "1") {
+    const { handleLearnerExercise } = await import("../../lib/engine/learner");
+    return handleLearnerExercise(request, true);
+  }
   const corsHeaders = getCorsHeaders(request);
   try {
     const { searchParams } = new URL(request.url);
@@ -100,6 +105,7 @@ export async function GET(request: Request) {
       const { data, error } = await supabase
         .from("exercises")
         .select("id, title, app_title, chapter, difficulty, created_at")
+        .or(AVAILABLE_EXERCISES_FILTER)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -128,6 +134,13 @@ export async function GET(request: Request) {
       { status: 500, headers: corsHeaders },
     );
   }
+}
+
+// Internal delivery/correction on the existing exercise endpoint. The editor's
+// POST/DELETE contracts remain separate and retain their existing authorization.
+export async function PATCH(request: Request) {
+  const { handleLearnerExercise } = await import("../../lib/engine/learner");
+  return handleLearnerExercise(request);
 }
 
 // --- POST : ADMIN ONLY ---

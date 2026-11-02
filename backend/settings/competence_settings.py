@@ -15,12 +15,18 @@ def _load_from_supabase() -> dict:
     from auth import get_supabase_client
     client = get_supabase_client()
 
-    chapters_resp = (
-        client.table("chapters")
-        .select("id, name, order_index, db_aliases")
-        .order("order_index")
-        .execute()
-    )
+    try:
+        chapters_resp = client.table("chapters").select(
+            "id, name, order_index, db_aliases"
+        ).order("order_index").execute()
+    except Exception as exc:
+        # The canonical Admin schema calls this same existing field `aliases`.
+        # Only retry the known missing-column error; never hide a network failure.
+        if getattr(exc, "code", None) != "42703":
+            raise
+        chapters_resp = client.table("chapters").select(
+            "id, name, order_index, aliases"
+        ).order("order_index").execute()
     competences_resp = (
         client.table("competences")
         .select("id, name, chapter_id, max_points, chapters(name)")
@@ -32,9 +38,9 @@ def _load_from_supabase() -> dict:
 
     chapter_order = [c["name"] for c in chapters]
     chapter_db_aliases: dict[str, list[str]] = {
-        c["name"]: c["db_aliases"]
+        c["name"]: c.get("db_aliases") or c.get("aliases")
         for c in chapters
-        if c.get("db_aliases")
+        if c.get("db_aliases") or c.get("aliases")
     }
 
     # Dénormalise le nom du chapitre depuis la jointure

@@ -133,6 +133,7 @@ export type ElementContent =
 
 // Union Discriminée pour typage strict
 export type ExerciseElement =
+  | { id:number; type:"value_table"; content:{columns:string[];rows:string[][]} }
   | { id: number; type: "text"; content: TextContent }
   | { id: number; type: "variation_table"; content: VariationTableContent }
   | { id: number; type: "graph"; content: GraphContent }

@@ -1,3 +1,4 @@
+import { AVAILABLE_EXERCISES_FILTER } from "../../lib/exerciseAvailability";
 import {
   ArrowRight,
   CheckCircle2,
@@ -23,6 +24,9 @@ import { generateVariables } from "../../utils/variableGenerator";
 import { FeedbackModal } from "../ui/FeedbackModal";
 import { HelpModal } from "../ui/HelpModal";
 import ExerciseRenderer from "./ExerciseRenderer";
+import { exerciseOperation, ExerciseRequestError } from "../../lib/engine/learnerClient";
+import { sessionExercise } from "../../lib/engine/exerciseView";
+import type { ExerciseSession, GradeQuestion } from "../../lib/engine/learnerTypes";
 
 async function updateCompetenceScore(
   userId: string,
@@ -96,7 +100,8 @@ interface ExerciseLoaderProps {
    *  Cliquer "Passer" supprime la ligne (le skip ne compte pas). */
   trackAbandon?: boolean;
   mode?: "test" | "recommendation";
-  onNextClick?: (hasErrors: boolean) => Promise<void>;
+  onNextClick?: (hasErrors: boolean,engineSessionId?:string) => Promise<void>;
+  dsId?:string;
   onGuestLimitReached?: () => void;
 }
 
@@ -112,15 +117,20 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
   mode,
   onNextClick,
   onGuestLimitReached,
+  dsId,
 }) => {
   const router = useRouter();
-  const { isGuest } = useAuth();
+  const { isGuest,user } = useAuth();
+  const storageKey=`novlearn-engine:${user?.id??"anonymous"}:${exerciseId}:${dsId??mode??"practice"}`;
   const { getGuestAttemptCount } = useGuestMode();
   const normalizeCompetenceId = useTaxonomyStore(
     (state) => state.normalizeCompetenceId,
   );
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
+  const [engineSession,setEngineSession]=useState<ExerciseSession|null>(null);
+  const engineRef=useRef<ExerciseSession|null>(null);
+  const engineLoadRef=useRef<{key:string;request:ReturnType<typeof exerciseOperation>}|null>(null);
   const [variables, setVariables] = useState<VariableValues>({});
   const [loading, setLoading] = useState(true);
   const [isTakingLong, setIsTakingLong] = useState(false);
@@ -182,12 +192,46 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
       setLastSaveStatus("idle");
       exerciseSavedRef.current = false;
       attemptIdRef.current = null;
+      engineRef.current=null;setEngineSession(null);
 
       slowTimerRef.current = setTimeout(() => {
         if (!abortController.signal.aborted) setIsTakingLong(true);
       }, 3000);
+      const applySession=(s:ExerciseSession)=>{
+        engineRef.current=s;setEngineSession(s);sessionStorage.setItem(storageKey,s.sessionId);
+        const e=sessionExercise(s);setExercise(e);setVariables({});onLoad?.(e);exerciseSavedRef.current=true;
+        setIsExerciseFinished(s.status==="completed");setHasErrors(s.status==="completed"&&!s.correct);
+        setLastSaveStatus(s.status==="completed"?"saved":"idle");
+      };
+      const loadEngine=(body:Record<string,unknown>)=>{
+        // React Strict Mode replays effects. Share only that owner's in-flight
+        // load so the first, cancelled effect cannot make the second fail 429.
+        const key=`${user?.id??""}:${JSON.stringify(body)}`;
+        if(engineLoadRef.current?.key===key) return engineLoadRef.current.request;
+        const request=exerciseOperation(body);engineLoadRef.current={key,request};
+        const clear=()=>{if(engineLoadRef.current?.request===request)engineLoadRef.current=null;};
+        void request.then(clear,clear);return request;
+      };
+      const openEngine=(id:string)=>loadEngine({action:"open",exerciseId:id,mode:dsId?"ds":mode==="test"?"placement":"practice",dsId:dsId??null,countPoints:shouldCountPoints,trackAbandon});
 
       try {
+        if(process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") {
+          let result:Awaited<ReturnType<typeof exerciseOperation>>|undefined;
+          const previous=sessionStorage.getItem(storageKey);
+          if(previous) {
+            try {result=await loadEngine({action:"resume",sessionId:previous});}
+            catch(e) {
+              if(!(e instanceof ExerciseRequestError)||![404,410].includes(e.status)) throw e;
+              sessionStorage.removeItem(storageKey);
+            }
+          }
+          if(!result&&exerciseId) result=await openEngine(exerciseId);
+          if(abortController.signal.aborted) return;
+          if(result?.kind==="engine") {
+            applySession(result.session);
+            return;
+          }
+        }
         let data = null;
         let dbError = null;
 
@@ -195,6 +239,8 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           const result = await supabase
             .from("exercises")
             .select("*")
+            .or(AVAILABLE_EXERCISES_FILTER)
+            .is("catalog_id",null)
             .eq("id", exerciseId)
             .maybeSingle();
           data = result.data;
@@ -202,7 +248,8 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
         } else {
           const { count, error: countError } = await supabase
             .from("exercises")
-            .select("*", { count: "exact", head: true });
+            .select("*", { count: "exact", head: true })
+            .or(AVAILABLE_EXERCISES_FILTER);
           if (countError) throw countError;
           const total = count || 0;
 
@@ -210,7 +257,8 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
             const randomOffset = Math.floor(Math.random() * total);
             const result = await supabase
               .from("exercises")
-              .select("*")
+              .select("id,catalog_id")
+              .or(AVAILABLE_EXERCISES_FILTER)
               .range(randomOffset, randomOffset)
               .maybeSingle();
             data = result.data;
@@ -224,6 +272,17 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
         if (abortController.signal.aborted) return;
         if (dbError) throw dbError;
         if (!data) throw new Error("Exercice introuvable.");
+        if(data.catalog_id) {
+          if(process.env.NEXT_PUBLIC_ENGINE_ENABLED!=="true") throw new Error("Cet exercice nécessite Engine.");
+          const result=await openEngine(String(data.id));
+          if(abortController.signal.aborted) return;
+          if(result.kind!=="engine") throw new Error("Version d’exercice modifiée. Réessayez.");
+          applySession(result.session);return;
+        }
+        if(!exerciseId) {
+          const legacy=await supabase.from("exercises").select("*").or(AVAILABLE_EXERCISES_FILTER).is("catalog_id",null).eq("id",data.id).maybeSingle();
+          if(legacy.error||!legacy.data) throw new Error("Exercice indisponible.");data=legacy.data;
+        }
 
         const content = data.content || {};
         const effectiveCompetences =
@@ -291,7 +350,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
     loadExercise();
     return () => abortController.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exerciseId, competenceIdFromProps, refreshTrigger]);
+  }, [exerciseId, competenceIdFromProps, refreshTrigger,user?.id]);
 
   const handleElementSubmit = useCallback(
     (elementId: number, answer: unknown, isCorrect: boolean) => {
@@ -315,7 +374,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
 
   // Sauvegarde finale de l'exercice en BDD (une seule ligne par exercice)
   useEffect(() => {
-    if (!isExerciseFinished || exerciseSavedRef.current || !exercise) return;
+    if (!isExerciseFinished || exerciseSavedRef.current || !exercise || engineRef.current) return;
 
     const saveExerciseAttempt = async () => {
       exerciseSavedRef.current = true;
@@ -420,7 +479,9 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
       if (onNextClick) {
         setIsNextLoading(true);
         try {
-          await onNextClick(hasErrors);
+          if(engineRef.current) await onNextClick(hasErrors,engineRef.current.sessionId);
+          else await onNextClick(hasErrors);
+          if(engineRef.current) sessionStorage.removeItem(storageKey);
         } catch (e) {
           console.error(e);
         } finally {
@@ -428,6 +489,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           feedbackPendingRef.current = false;
         }
       } else {
+        if(engineRef.current) sessionStorage.removeItem(storageKey);
         proceedToNext();
       }
     };
@@ -528,6 +590,12 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           {!isExerciseFinished && (
             <button
               onClick={async () => {
+                if(engineRef.current) {
+                  const r=await exerciseOperation({action:"skip",sessionId:engineRef.current.sessionId});
+                  if(r.kind!=="engine") return;
+                  engineRef.current=r.session;setEngineSession(r.session);
+                  sessionStorage.removeItem(storageKey);
+                }
                 // Supprime la tentative pré-insérée : "Passer" ne compte pas faux
                 if (attemptIdRef.current !== null) {
                   const idToDelete = attemptIdRef.current;
@@ -543,7 +611,8 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
                 if (onNextClick) {
                   setIsNextLoading(true);
                   try {
-                    await onNextClick(hasErrors);
+                    if(engineRef.current) await onNextClick(hasErrors,engineRef.current.sessionId);
+                    else await onNextClick(hasErrors);
                   } catch (e) {
                     console.error(e);
                   } finally {
@@ -601,6 +670,19 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           exercise={exercise}
           preGeneratedVariables={variables}
           onElementSubmit={handleElementSubmit}
+          engineSession={engineSession??undefined}
+          onGrade={async(questionId,answer)=>{
+            const current=engineRef.current;if(!current) throw new Error("Instance indisponible");
+            const r=await exerciseOperation({action:"answer",sessionId:current.sessionId,questionId,answer});
+            if(r.kind!=="engine") throw new Error("Correction indisponible");
+            engineRef.current=r.session;setEngineSession(r.session);
+            setIsExerciseFinished(r.session.status==="completed");setHasErrors(r.session.status==="completed"&&!r.session.correct);
+            if(r.session.status==="completed") {
+              setLastSaveStatus("saved");
+              if(isGuest && await getGuestAttemptCount()>=GUEST_EXERCISE_LIMIT) onGuestLimitReached?.();
+            }
+            return r.session.questions[questionId];
+          }}
         />
 
         {isExerciseFinished && (

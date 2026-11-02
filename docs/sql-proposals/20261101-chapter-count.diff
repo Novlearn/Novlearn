@@ -1,0 +1,7 @@
+--- Staging/public.get_chapters_with_count(uuid) observed md5=887bc36f41086cb5ec3647782cd42d04
++++ proposed/public.get_chapters_with_count(uuid) NOT AUTHORIZED FOR REMOTE APPLICATION
+@@
+     FROM public.exercises e LEFT JOIN public.exercise_attempts ea
+       ON e.id=ea.exercise_id AND ea.user_id=target_user_id
++    WHERE (e.catalog_id IS NULL OR e.active_version_id IS NOT NULL)
+     GROUP BY e.chapter ORDER BY e.chapter;

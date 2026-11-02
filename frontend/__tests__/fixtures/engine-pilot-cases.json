@@ -1,0 +1,47 @@
+[
+  [
+    {
+      "questionId": "q",
+      "answer": { "format": "latex", "source": "12" },
+      "expectedState": "incorrect"
+    }
+  ],
+  [
+    {
+      "questionId": "q",
+      "answer": { "format": "latex", "source": "-1" },
+      "expectedState": "incorrect"
+    }
+  ],
+  [
+    {
+      "questionId": "q",
+      "answer": { "format": "latex", "source": "2(x+1)" },
+      "expectedState": "correct"
+    },
+    {
+      "questionId": "q",
+      "answer": { "format": "latex", "source": "2x+3" },
+      "expectedState": "incorrect"
+    }
+  ],
+  [
+    {
+      "questionId": "q",
+      "answer": { "format": "selection", "optionIds": ["three"] },
+      "expectedState": "incorrect"
+    }
+  ],
+  [
+    {
+      "questionId": "q1",
+      "answer": { "format": "latex", "source": "1250" },
+      "expectedState": "incorrect"
+    },
+    {
+      "questionId": "q2",
+      "answer": { "format": "latex", "source": "1250" },
+      "expectedState": "incorrect"
+    }
+  ]
+]

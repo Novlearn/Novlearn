@@ -3,7 +3,8 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { supabase } from "@/app/lib/supabase";
 import { useCallback } from "react";
 
-export const GUEST_EXERCISE_LIMIT = 5;
+import { GUEST_EXERCISE_LIMIT } from "../lib/guestLimits";
+export { GUEST_EXERCISE_LIMIT } from "../lib/guestLimits";
 
 export function useGuestMode() {
   const { user } = useAuth();

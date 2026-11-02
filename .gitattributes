@@ -1,0 +1,4 @@
+# Exact SQL function snapshots and guards must survive Windows checkout unchanged.
+docs/sql-proposals/202611* text eol=lf
+supabase/rollouts/20261101* text eol=lf
+supabase/migrations/20261102* text eol=lf

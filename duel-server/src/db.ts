@@ -23,6 +23,8 @@ export interface ExerciseElement {
 }
 
 export interface ExerciseRow {
+  catalog_id?:string|null;
+  active_version_id?:string|null;
   id: number;
   title: string;
   app_title?: string | null;
@@ -83,15 +85,18 @@ export async function recordAttempt(
   answer: string,
   isCorrect: boolean,
   timeSpentMs: number,
+  instanceId?:string,
 ): Promise<void> {
-  await supabase.from("duel_attempts").insert({
+  const { error } = await supabase.from("duel_attempts").insert({
     duel_id: duelId,
     player_id: playerId,
     element_id: elementId,
     answer,
     is_correct: isCorrect,
     time_spent: Math.min(Math.max(0, timeSpentMs), 600_000),
+    ...(instanceId?{duel_exercise_instance_id:instanceId}:{}),
   });
+  if(error) throw new Error("Duel attempt persistence failed");
 }
 
 // ─── Profiles ─────────────────────────────────────────────────────────────────
@@ -115,7 +120,9 @@ export async function getRandomExercise(): Promise<{
 }> {
   const { data, error } = await supabase
     .from("exercises")
-    .select("id, title, app_title, chapter, difficulty, content")
+    .select("id, title, app_title, chapter, difficulty, content, catalog_id, active_version_id")
+    // Service role bypasses RLS. Never admit an unpublished canonical draft.
+    .or("catalog_id.is.null,active_version_id.not.is.null")
     // For duels we only want "flash" exercises that do NOT require a calculator.
     // Column names follow the Supabase schema (case‑sensitive).
     .eq("Is_Flash", true)
@@ -126,7 +133,7 @@ export async function getRandomExercise(): Promise<{
   const nonQcm = data.filter((e) => !isQcmExercise(e));
   const pool = nonQcm.length > 0 ? nonQcm : data;
   const row = pool[Math.floor(Math.random() * pool.length)] as ExerciseRow;
-  const variables = generateVariables(row.content?.variables ?? []);
+  const variables = row.catalog_id ? {} : generateVariables(row.content?.variables ?? []);
   return { row, variables };
 }
 

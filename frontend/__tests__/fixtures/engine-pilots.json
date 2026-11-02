@@ -1,0 +1,224 @@
+[
+  {
+    "schemaVersion": 5,
+    "kind": "composed",
+    "id": "mission1-pilot-1",
+    "revision": "1",
+    "title": "[PILOTE ADMIN M1-01] Terme d’une suite arithmétique",
+    "catalogue": {
+      "chapter": "Suites numériques",
+      "skills": ["calculer_des_termes"],
+      "difficulty": 1,
+      "exerciseType": "classic",
+      "needsCalculator": false
+    },
+    "generation": {
+      "schemaVersion": 5,
+      "definitions": [],
+      "constraints": [],
+      "maxAttempts": 16,
+      "maxDraws": 64
+    },
+    "variables": [],
+    "elements": [
+      {
+        "id": "intro",
+        "type": "text",
+        "text": "La suite est définie par u_n = 2 + 3n pour n entier naturel."
+      },
+      {
+        "id": "q",
+        "type": "question",
+        "text": "Calculer u_3.",
+        "points": 1,
+        "response": { "format": "latex", "kind": "rational" },
+        "expectedLatex": "11",
+        "policy": { "domain": "rational", "form": "value-only" }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 5,
+    "kind": "composed",
+    "id": "mission1-pilot-2",
+    "revision": "1",
+    "title": "[PILOTE ADMIN M1-02] Suite à paramètre contraint",
+    "catalogue": {
+      "chapter": "Suites numériques",
+      "skills": ["calculer_des_termes"],
+      "difficulty": 2,
+      "exerciseType": "classic",
+      "needsCalculator": false
+    },
+    "generation": {
+      "schemaVersion": 5,
+      "definitions": [
+        { "name": "a", "kind": "integer", "min": 2, "max": 8, "exclusions": [] }
+      ],
+      "constraints": [
+        {
+          "kind": "comparison",
+          "left": { "variable": "a" },
+          "operator": ">",
+          "right": { "constant": 3 }
+        }
+      ],
+      "maxAttempts": 16,
+      "maxDraws": 64
+    },
+    "variables": [{ "name": "n", "domain": "integer" }],
+    "elements": [
+      {
+        "id": "intro",
+        "type": "text",
+        "text": "Pour la suite de terme général ci-dessous, calculer le terme d’indice 4."
+      },
+      { "id": "formula", "type": "expression", "latex": "3n+a" },
+      {
+        "id": "q",
+        "type": "question",
+        "text": "Quelle est la valeur du terme d’indice 4 ?",
+        "points": 1,
+        "response": { "format": "latex", "kind": "rational" },
+        "expectedLatex": "12+a",
+        "policy": { "domain": "rational", "form": "value-only" }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 5,
+    "kind": "composed",
+    "id": "mission1-pilot-3",
+    "revision": "1",
+    "title": "[PILOTE ADMIN M1-03] Dérivée et équivalence polynomiale",
+    "catalogue": {
+      "chapter": "Dérivation et Fonctions",
+      "skills": ["calculer_une_derivee"],
+      "difficulty": 2,
+      "exerciseType": "classic",
+      "needsCalculator": false
+    },
+    "generation": {
+      "schemaVersion": 5,
+      "definitions": [],
+      "constraints": [],
+      "maxAttempts": 16,
+      "maxDraws": 64
+    },
+    "variables": [{ "name": "x", "domain": "real" }],
+    "elements": [
+      {
+        "id": "intro",
+        "type": "text",
+        "text": "Sur les réels, on considère f(x) = x² + 2x. Donner une expression de sa dérivée."
+      },
+      {
+        "id": "q",
+        "type": "question",
+        "text": "Expression de f′(x)",
+        "points": 1,
+        "response": {
+          "format": "latex",
+          "kind": "expression",
+          "variable": "x"
+        },
+        "expectedLatex": "2x+2",
+        "policy": { "domain": "polynomial", "form": "value-only" }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 5,
+    "kind": "composed",
+    "id": "mission1-pilot-4",
+    "revision": "1",
+    "title": "[PILOTE ADMIN M1-04] Flash : reconnaître une suite",
+    "catalogue": {
+      "chapter": "Suites numériques",
+      "skills": ["reconnaitre_suites_arith_geo"],
+      "difficulty": 1,
+      "exerciseType": "flash",
+      "needsCalculator": false
+    },
+    "generation": {
+      "schemaVersion": 5,
+      "definitions": [],
+      "constraints": [],
+      "maxAttempts": 16,
+      "maxDraws": 64
+    },
+    "variables": [],
+    "elements": [
+      {
+        "id": "q",
+        "type": "mcq",
+        "text": "La suite u_n = 2n + 1 est arithmétique. Quelle est sa raison ?",
+        "points": 1,
+        "mode": "single",
+        "options": [
+          { "id": "two", "content": { "format": "text", "text": "2" } },
+          { "id": "three", "content": { "format": "text", "text": "3" } }
+        ],
+        "expectedOptionIds": ["two"]
+      }
+    ]
+  },
+  {
+    "schemaVersion": 5,
+    "kind": "composed",
+    "id": "mission1-pilot-5",
+    "revision": "1",
+    "title": "[PILOTE ADMIN M1-05] Calculatrice et plusieurs termes",
+    "catalogue": {
+      "chapter": "Suites numériques",
+      "skills": ["calculer_des_termes"],
+      "difficulty": 3,
+      "exerciseType": "classic",
+      "needsCalculator": true
+    },
+    "generation": {
+      "schemaVersion": 5,
+      "definitions": [],
+      "constraints": [],
+      "maxAttempts": 16,
+      "maxDraws": 64
+    },
+    "variables": [],
+    "elements": [
+      {
+        "id": "intro",
+        "type": "text",
+        "text": "Un placement initial de 1 250 € augmente de 3 % par an. Les montants restent exacts, sans arrondi intermédiaire. Calculatrice autorisée."
+      },
+      {
+        "id": "table",
+        "type": "value-table",
+        "columns": ["Année", "Montant initial (€)"],
+        "rows": [
+          [
+            { "kind": "number", "value": { "latex": "0" } },
+            { "kind": "number", "value": { "latex": "1250" } }
+          ]
+        ]
+      },
+      {
+        "id": "q1",
+        "type": "question",
+        "text": "Montant après un an, en euros ?",
+        "points": 1,
+        "response": { "format": "latex", "kind": "rational" },
+        "expectedLatex": "1287.5",
+        "policy": { "domain": "rational", "form": "value-only" }
+      },
+      {
+        "id": "q2",
+        "type": "question",
+        "text": "Montant après deux ans, en euros ?",
+        "points": 1,
+        "response": { "format": "latex", "kind": "rational" },
+        "expectedLatex": "1326.125",
+        "policy": { "domain": "rational", "form": "value-only" }
+      }
+    ]
+  }
+]

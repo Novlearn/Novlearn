@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { mockFrom, mockSupabaseAuth } = vi.hoisted(() => {
   const mockChain = {
     select: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
@@ -56,6 +57,7 @@ import {
 function setFromResult(data: unknown, error: unknown = null) {
   mockFrom.mockReturnValue({
     select: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
@@ -198,6 +200,11 @@ function setExercisesResult(exercises: unknown[], error: unknown = null) {
   const result = { data: exercises, error };
   const chain = {
     select: vi.fn().mockReturnThis(),
+    or: vi.fn((filter: string) => {
+      expect(filter).toBe("catalog_id.is.null,active_version_id.not.is.null");
+      result.data = exercises?.filter((row: any) => row.catalog_id == null || row.active_version_id != null);
+      return chain;
+    }),
     eq: vi.fn().mockReturnThis(),
     then: (onFulfilled: (v: unknown) => unknown) =>
       Promise.resolve(result).then(onFulfilled),
@@ -226,6 +233,22 @@ describe("getRandomExercise", () => {
     expect(result.row.id).toBe(1);
     expect(typeof result.variables).toBe("object");
     expect("a" in result.variables).toBe(true);
+  });
+
+  it("exclut un brouillon canonique à chaque tirage privilégié", async () => {
+    setExercisesResult([validExercise, { ...validExercise, id: 2, catalog_id: "draft", active_version_id: null }]);
+    for (let i = 0; i < 100; i++) expect((await getRandomExercise()).row.id).toBe(1);
+    expect(mockFrom.mock.results.at(-1)?.value.or).toHaveBeenCalled();
+  });
+
+  it("conserve un canonique actif dans la sélection", async () => {
+    setExercisesResult([{ ...validExercise, catalog_id: "canonical", active_version_id: "published" }]);
+    expect((await getRandomExercise()).row.id).toBe(1);
+  });
+
+  it("refuse une sélection ne contenant que des brouillons", async () => {
+    setExercisesResult([{ ...validExercise, catalog_id: "draft", active_version_id: null }]);
+    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
   });
 
   it("génère une variable entière dans l'intervalle [min, max]", async () => {

@@ -210,6 +210,19 @@ async def ds_submit(
     if not r.data:
         raise HTTPException(status_code=404, detail="DS introuvable")
 
+    if body.engine_session_id:
+        try:
+            result = supabase.rpc("engine_apply_ds_result", {
+                "p_id": str(body.engine_session_id), "p_owner": user_id, "p_ds": ds_id,
+            }).execute()
+            return result.data
+        except Exception:
+            raise HTTPException(status_code=409, detail="Résultat Engine indisponible pour ce DS")
+    # A canonical answer is never graded from the old browser boolean.
+    exercise = supabase.table("exercises").select("catalog_id").eq("id", body.exercise_id).maybe_single().execute()
+    if exercise.data and exercise.data.get("catalog_id"):
+        raise HTTPException(status_code=400, detail="Une correction Engine est requise")
+
     soumettre_reponse_ds(
         supabase,
         ds_id=ds_id,

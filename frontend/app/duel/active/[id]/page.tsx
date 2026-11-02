@@ -12,10 +12,14 @@ import QuestionRenderer from "../../../renderers/QuestionRenderer";
 import { Exercise, TextContent, VariableValues } from "../../../types/exercise";
 import { evaluate } from "../../../utils/math/evaluation";
 import { substituteVariables } from "../../../utils/math/parsing";
+import type { PublicInstance } from "novlearn-exercise-engine";
+import type { GradeQuestion, QuestionResult } from "../../../lib/engine/learnerTypes";
+import { sessionExercise } from "../../../lib/engine/exerciseView";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ExerciseMsg {
+  instance?:PublicInstance;
   exercise: {
     id: number;
     title: string;
@@ -69,6 +73,8 @@ export default function ActiveDuelPage() {
   const duelId = parseInt(params.id as string);
 
   const roomRef = useRef<any>(null);
+  const engineInstanceRef=useRef<PublicInstance|null>(null);
+  const answerRequests=useRef(new Map<string,(result:QuestionResult)=>void>());
   const [connected, setConnected] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -164,7 +170,9 @@ export default function ActiveDuelPage() {
           exerciseCountRef.current++;
           submittingRef.current = false;
           setCorrection(null);
-          setExercise(buildExercise(msg.exercise));
+          for(const resolve of answerRequests.current.values()) resolve({state:"error",attempts:0,finished:false});
+          answerRequests.current.clear();engineInstanceRef.current=msg.instance??null;
+          setExercise(msg.instance?sessionExercise({sessionId:msg.instance.instanceId,exerciseId:String(msg.exercise.id),versionId:"",instance:msg.instance,metadata:{...msg.exercise,competences:[]},questions:{},status:"active",correct:false,expiresAt:""}):buildExercise(msg.exercise));
           setVariables(msg.variables ?? {});
           setConnected(true);
         };
@@ -173,6 +181,11 @@ export default function ActiveDuelPage() {
         room.onMessage("exercise", handleExercise);
         // Backwards-compatibility with older room code that still emits "exercise_loaded"
         room.onMessage("exercise_loaded", handleExercise);
+        room.onMessage("answer_result",(msg:{requestId:string;instanceId:string;state:QuestionResult["state"];reveal?:QuestionResult["reveal"]})=>{
+          if(msg.instanceId!==engineInstanceRef.current?.instanceId) return;
+          const resolve=answerRequests.current.get(msg.requestId);
+          if(resolve){answerRequests.current.delete(msg.requestId);resolve({state:msg.state,attempts:0,finished:msg.state==="correct",reveal:msg.reveal});}
+        });
 
         // ── Someone scored ──────────────────────────────────────────────────
         room.onMessage(
@@ -534,6 +547,7 @@ export default function ActiveDuelPage() {
                   )}
 
                   {exercise.elements.map((element) => {
+                    if(element.type==="equation") return <div key={element.id} className="text-white text-lg"><MathText content={`$$${element.content.latex}$$`} variables={variables}/></div>;
                     if (element.type === "text") {
                       return (
                         <div key={element.id} className="text-white text-lg">
@@ -544,16 +558,26 @@ export default function ActiveDuelPage() {
                     if (element.type === "question") {
                       const q = element.content as any;
                       const answerExpr = (q.answer ?? q.correctAnswer ?? "").trim();
-                      const correctAnswerStr = computeCorrectAnswer(answerExpr, variables);
+                      const correctAnswerStr = engineInstanceRef.current?"":computeCorrectAnswer(answerExpr, variables);
                       const rawFormat = q.answerFormat ?? q.answerType ?? "number";
                       const answerFormat = rawFormat === "numeric" ? "number" : rawFormat;
 
                       return (
                         <QuestionRenderer
+                          gradeAnswer={engineInstanceRef.current?async(answer)=>{
+                            const instance=engineInstanceRef.current!;
+                            const question=instance.elements.find(e=>e.type==="question")!;
+                            const requestId=crypto.randomUUID();
+                            return new Promise<QuestionResult>((resolve)=>{
+                              const timer=setTimeout(()=>{answerRequests.current.delete(requestId);resolve({state:"error",attempts:0,finished:false});},15000);
+                              answerRequests.current.set(requestId,result=>{clearTimeout(timer);resolve(result);});
+                              roomRef.current?.send("submitAnswer",{requestId,instanceId:instance.instanceId,questionId:question.id,rawAnswer:answer});
+                            });
+                          }:undefined}
                           key={`${exercise.id}-${element.id}`}
                           content={{ ...q, correctAnswer: correctAnswerStr, answerFormat }}
                           variables={variables}
-                          onSubmit={handleAnswerSubmit}
+                          onSubmit={engineInstanceRef.current?undefined:handleAnswerSubmit}
                           maxAttempts={999}
                           allowHint={false}
                         />

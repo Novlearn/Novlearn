@@ -40,6 +40,15 @@ class _QB:
     def neq(self, *a, **k): return self
     def in_(self, *a, **k): return self
     def order(self, *a, **k): return self
+    def or_(self, filters):
+        # Model the eligibility rule on synthetic rows, before any limit/single.
+        assert filters == "catalog_id.is.null,active_version_id.not.is.null"
+        def available(row):
+            return row.get("catalog_id") is None or row.get("active_version_id") is not None
+        self._list_data = [row for row in self._list_data if available(row)]
+        if self._single_data and not available(self._single_data):
+            self._single_data = None
+        return self
 
     def limit(self, n, *a, **k):
         self._limit = int(n)

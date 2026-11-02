@@ -6,6 +6,8 @@ import logging
 import random
 from typing import Any
 
+from exercise_availability import available_exercises
+
 from settings.competence_settings import get_competences, CHAPTER_DB_ALIASES
 
 logger = logging.getLogger(__name__)
@@ -81,7 +83,9 @@ def _get_exercise_result(
     if eid is None or c is None:
         return None
     # Get competences array for this exercise
-    ex_data = supabase_client.table("exercises").select("competences").eq("id", eid).maybe_single().execute()
+    ex_data = available_exercises(supabase_client, "competences").eq("id", eid).maybe_single().execute()
+    if not ex_data.data:
+        return None
     exercise_competences = ex_data.data.get("competences") if ex_data.data else []
     if not isinstance(exercise_competences, list):
         exercise_competences = [c] if c else []  # Fallback to single competence
@@ -99,7 +103,7 @@ def _fallback_random_exercise(
     supabase_client: Any, chapter: str | None = None
 ) -> dict | None:
     """Un exercice aléatoire avec competences non vide si possible ; optionnellement filtré par chapitre."""
-    q = supabase_client.table("exercises").select("id, competences, difficulty, chapter")
+    q = available_exercises(supabase_client, "id, competences, difficulty, chapter")
     if chapter:
         chapters_to_try = CHAPTER_DB_ALIASES.get(chapter, [chapter])
         if len(chapters_to_try) == 1:
@@ -182,7 +186,7 @@ def recommander_exercice(
         points_eleve.setdefault(cid, 0)
 
     # Exercices par compétence et difficulté (optionnellement filtrés par chapitre)
-    q_ex = supabase_client.table("exercises").select("id, competences, difficulty, chapter")
+    q_ex = available_exercises(supabase_client, "id, competences, difficulty, chapter")
     if chapter:
         chapters_to_try = CHAPTER_DB_ALIASES.get(chapter, [chapter])
         if len(chapters_to_try) == 1:

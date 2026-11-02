@@ -28,6 +28,9 @@ const nextConfig = {
   },
   // Configuration pour le développement local et la production
   async rewrites() {
+    if(process.env.NODE_ENV === "development" && process.env.NOVLEARN_ENGINE_ENABLED === "true") {
+      return {afterFiles:[{source:"/api/:path*",destination:"http://127.0.0.1:8011/api/:path*"}]};
+    }
     // En développement, proxy vers localhost
     if (process.env.NODE_ENV === "development") {
       return [
@@ -42,4 +45,8 @@ const nextConfig = {
   },
 };
 
-export default withSerwistConfig(nextConfig);
+// The isolated Staging launcher uses Turbopack and no service-worker build.
+// Keep the existing production/development configuration for other entry points.
+export default process.env.NODE_ENV === "development" && process.env.NOVLEARN_ENGINE_ENABLED === "true"
+  ? nextConfig
+  : withSerwistConfig(nextConfig);

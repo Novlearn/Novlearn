@@ -104,7 +104,7 @@ function ExercisePageContent() {
 
   // Fetch next exercise when in test or recommendation mode (no id in URL)
   const handleNextClick = useCallback(
-    async (hasErrors: boolean) => {
+    async (hasErrors: boolean,engineSessionId?:string) => {
       if (idFromUrl) return;
       const lastSuccess = !hasErrors;
       const applyNext = (id: string, m: 'test' | 'recommendation', ch?: string, competencesArray?: string[]) => {
@@ -116,7 +116,7 @@ function ExercisePageContent() {
         setNextKey((k) => k + 1);
       };
       if (mode === 'test' && testChapter) {
-        const res = await postChapterTestNext(testChapter, lastSuccess);
+        const res = await postChapterTestNext(testChapter, lastSuccess,engineSessionId);
         if (res?.completed) {
           console.log('[ExercisePage] Chapter test completed, switching to recommendation');
           const next = await getRecommendedExercise(chapterFromUrl || null);
@@ -157,6 +157,7 @@ function ExercisePageContent() {
   );
 
   const handleLoad = useCallback((exercise: Exercise) => {
+    setError(null);
     // Keep track of the public title for display (fallback to internal title if needed)
     setCurrentExerciseTitle(exercise.app_title || exercise.title || null);
   }, []);

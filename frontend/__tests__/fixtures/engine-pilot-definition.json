@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 5,
+  "kind": "composed",
+  "id": "mission1-pilot-1",
+  "revision": "1",
+  "title": "[PILOTE ADMIN M1-01] Terme d’une suite arithmétique",
+  "catalogue": {
+    "chapter": "Suites numériques",
+    "skills": [
+      "calculer_des_termes"
+    ],
+    "difficulty": 1,
+    "exerciseType": "classic",
+    "needsCalculator": false
+  },
+  "generation": {
+    "schemaVersion": 5,
+    "definitions": [],
+    "constraints": [],
+    "maxAttempts": 16,
+    "maxDraws": 64
+  },
+  "variables": [],
+  "elements": [
+    {
+      "id": "intro",
+      "type": "text",
+      "text": "La suite est définie par u_n = 2 + 3n pour n entier naturel."
+    },
+    {
+      "id": "q",
+      "type": "question",
+      "text": "Calculer u_3.",
+      "points": 1,
+      "response": {
+        "format": "latex",
+        "kind": "rational"
+      },
+      "expectedLatex": "11",
+      "policy": {
+        "domain": "rational",
+        "form": "value-only"
+      }
+    }
+  ]
+}

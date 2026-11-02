@@ -100,6 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error) throw error;
 
+        if(!session&&process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") {
+          const response=await fetch("/api/exercises?auth=1",{credentials:"same-origin",cache:"no-store"});
+          if(response.ok) {
+            const identity=await response.json();
+            if(mounted) {setUser(identity.user);setProfile(identity.profile);}
+            return;
+          }
+        }
+
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
