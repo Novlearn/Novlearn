@@ -8,7 +8,7 @@
  *   - verifySupabaseToken, getDuel, getPlayerName, saveDuelResult, recordAttempt
  *     (avec client Supabase mocké via vi.hoisted + vi.mock)
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Mock du client Supabase ───────────────────────────────────────────────────
 // vi.hoisted garantit que ces variables sont disponibles dans la factory vi.mock.
@@ -69,6 +69,7 @@ function setFromResult(data: unknown, error: unknown = null) {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+afterEach(() => vi.unstubAllEnvs());
 
 // ── verifySupabaseToken ───────────────────────────────────────────────────────
 
@@ -196,7 +197,7 @@ describe("saveDuelResult", () => {
  * getRandomExercise() await directement la chaîne .from().select().eq().eq()
  * sans appeler .single(), donc la chaîne doit implémenter .then().
  */
-function setExercisesResult(exercises: unknown[], error: unknown = null) {
+function setExercisesResult(exercises: unknown[], error: unknown = null, versions: unknown[] = []) {
   const result = { data: exercises, error };
   const chain = {
     select: vi.fn().mockReturnThis(),
@@ -212,7 +213,8 @@ function setExercisesResult(exercises: unknown[], error: unknown = null) {
       Promise.resolve(result).catch(onRejected),
     finally: (cb: () => void) => Promise.resolve(result).finally(cb),
   };
-  mockFrom.mockReturnValue(chain as any);
+  const versionChain = {select:vi.fn().mockReturnThis(), in:vi.fn().mockResolvedValue({data:versions,error:null})};
+  mockFrom.mockImplementation((table?: string) => (table === "exercise_versions" ? versionChain : chain) as any);
 }
 
 describe("getRandomExercise", () => {
@@ -242,8 +244,28 @@ describe("getRandomExercise", () => {
   });
 
   it("conserve un canonique actif dans la sélection", async () => {
-    setExercisesResult([{ ...validExercise, catalog_id: "canonical", active_version_id: "published" }]);
+    setExercisesResult([{ ...validExercise, catalog_id: "canonical", active_version_id: "published" }], null,
+      [{id:"published",exercise_id:1,editorial_status:"published",elements:[{type:"question"}]}]);
     expect((await getRandomExercise()).row.id).toBe(1);
+  });
+
+  it("sélectionne uniquement les versions publiées compatibles avec l'écran du duel", async () => {
+    vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true");
+    const rows = [1,2,3,4,5].map(id => ({...validExercise,id,catalog_id:"c"+id,active_version_id:"v"+id,content:{}}));
+    setExercisesResult(rows,null,[
+      {id:"v1",exercise_id:1,editorial_status:"published",elements:[{type:"text"},{type:"question"},{type:"explanation"}]},
+      {id:"v2",exercise_id:2,editorial_status:"published",elements:[{type:"mcq"}]},
+      {id:"v3",exercise_id:3,editorial_status:"published",elements:[{type:"question"},{type:"question"}]},
+      {id:"v4",exercise_id:4,editorial_status:"draft",elements:[{type:"question"}]},
+      {id:"v5",exercise_id:5,editorial_status:"published",elements:[{type:"question"},{type:"function-graph"}]},
+    ]);
+    for(let i=0;i<10;i++) expect((await getRandomExercise()).row.id).toBe(1);
+  });
+
+  it("refuse le repli historique lorsque Engine est activé", async () => {
+    vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true");
+    setExercisesResult([validExercise]);
+    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
   });
 
   it("refuse une sélection ne contenant que des brouillons", async () => {

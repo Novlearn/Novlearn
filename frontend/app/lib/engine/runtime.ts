@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { JsonObject, JsonValue } from "novlearn-exercise-engine";
 import { createNodeHost, type EngineOperation, type NodeHost } from "novlearn-exercise-engine/node-host";
 import { EngineError, engineConfiguration } from "./config";
+import { ENGINE_ARTIFACT_SHA256 } from "./artifact";
 let host: NodeHost | undefined;
 /** Only the official bounded host evaluates maths; a missing host fails closed. */
 export async function runEngine(operation: EngineOperation, payload: JsonObject, signal?: AbortSignal): Promise<JsonValue> {
@@ -21,6 +22,7 @@ export async function runEngine(operation: EngineOperation, payload: JsonObject,
     // Development-only private loopback bridge to the same Linux host. No remote
     // URL, redirects, browser Origin, database credentials or fallback evaluator.
     if (process.env.NOVLEARN_ENGINE_LOCAL_URL !== "http://127.0.0.1:3151/run" ||
+        process.env.NOVLEARN_ENGINE_ARCHIVE_SHA256 !== ENGINE_ARTIFACT_SHA256 ||
         !/^[a-f0-9]{64}$/.test(process.env.NOVLEARN_ENGINE_LOCAL_CAPABILITY ?? "")) {
         throw new EngineError(503, "Le host Engine local n’est pas démarré.");
     }

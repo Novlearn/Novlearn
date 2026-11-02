@@ -42,6 +42,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
   const [correctionError,setCorrectionError]=useState<string|null>(null);
   const [status, setStatus] = useState<"idle" | "correct" | "incorrect">(initialResult?.state==="correct"?"correct":initialResult?.state==="incorrect"?"incorrect":"idle");
   const [showExplanation, setShowExplanation] = useState(false);
+  const explanation=gradeAnswer?serverResult?.reveal?.explanation:content.explanation;
 
   const isMultipleChoice = content?.multipleChoice ?? false;
   const optionKey=optionIds?.join(",");
@@ -278,7 +279,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
             )}
 
             {/* --- EXPLICATION --- */}
-            {content.explanation && (
+            {explanation && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -309,7 +310,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
                         </p>
                         <div className="text-slate-800 text-base leading-relaxed">
                           <MathText
-                            content={content.explanation}
+                            content={explanation}
                             variables={variables}
                           />
                         </div>

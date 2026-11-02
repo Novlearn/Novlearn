@@ -52,6 +52,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
 
   const [showHint, setShowHint] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const explanation=gradeAnswer?serverResult?.reveal?.explanation:content.explanation;
 
   const simplifiedCorrectAnswer = useMemo(() => {
     if(gradeAnswer) return serverResult?.reveal?.latex??serverResult?.reveal?.texts?.[0]??"";
@@ -264,7 +265,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
               </span>
             </div>
 
-            {content.explanation && (
+            {explanation && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -297,7 +298,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                         </p>
                         <div className="text-slate-800 text-base leading-relaxed">
                           <MathText
-                            content={content.explanation}
+                            content={explanation}
                             variables={variables}
                           />
                         </div>

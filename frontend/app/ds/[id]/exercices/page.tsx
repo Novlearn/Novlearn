@@ -8,6 +8,8 @@ import { Layout } from "../../../components/Layout";
 import { useAuth } from "../../../contexts/AuthContext";
 import { dsApi, DSRecommendation } from "../../../lib/api";
 
+const DIFFICULTY_LABEL: Record<string, string> = {easy:"Facile",medium:"Moyen",hard:"Difficile"};
+
 function DSExercicesPage() {
   const params = useParams();
   const dsId = params.id as string;
@@ -226,7 +228,7 @@ function DSExercicesPage() {
               className="text-violet-200 text-xs leading-relaxed"
               style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 500 }}
             >
-              {currentExerciseTitle || "Exercice"} · {recommendation.difficulty} · Recommandation DS
+              {currentExerciseTitle || "Exercice"} · {DIFFICULTY_LABEL[recommendation.difficulty] ?? recommendation.difficulty} · Recommandation DS
             </p>
           </div>
         </div>

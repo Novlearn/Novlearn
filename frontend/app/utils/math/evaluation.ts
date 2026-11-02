@@ -26,6 +26,7 @@ export const toMathJsSyntax = (expression: string): string => {
   expr = expr.replace(/\\displaystyle/g, "");
 
   // 2. Formatage des décimales
+  expr = expr.replace(/\{,\}/g, ".");
   expr = expr.replace(/,/g, ".");
   expr = expr.replace(/\\,/g, ".");
 

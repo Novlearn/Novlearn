@@ -5,10 +5,17 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
-const certifiedEngineIdentity = { version: '0.1.1', pipelineVersion: '0.1.0', engineArchiveSha256: 'c7116f9310da49478deb43ca64e04b974efd34765b45a22294c13b5235bdf927' };
+const certifiedEngineIdentities = {
+  '0.1.1': 'c7116f9310da49478deb43ca64e04b974efd34765b45a22294c13b5235bdf927',
+  '0.1.2': '632e5b2e6c0292a08b23872a0fad93504edac7e9e997a1129cebd8799110ed6b',
+  '0.1.3': 'aa07fdf2c833900957dce2e2632e05a845025f96bf2264147a4eea99b35bcab9',
+  '0.1.4': '791c6472fc87ba0559d8889cf3f4482ab5466def49eec9e418ddbc2c7278f3ea',
+};
 
-export async function startLocalEngine(artifact) {
-  const port = 3151;
+export async function startLocalEngine(artifact, { port = 3151, releaseVersion = '0.1.4' } = {}) {
+  assert(Object.hasOwn(certifiedEngineIdentities, releaseVersion), 'Unknown private Engine release.');
+  const certifiedEngineIdentity = {version: releaseVersion, pipelineVersion:'0.1.0', engineArchiveSha256:certifiedEngineIdentities[releaseVersion]};
+  assert([3151,3152,3153,3154,3155].includes(port), 'Only isolated local Engine ports are allowed.');
   const root = process.cwd();
   assert(path.resolve(artifact).startsWith(path.resolve('.local/engine-staging') + path.sep));
   const work = path.join(artifact, 'engine-' + Date.now());
@@ -21,7 +28,7 @@ export async function startLocalEngine(artifact) {
   const image =
     'node:24.19.0-bookworm@sha256:4196d66a565c6f195728d9952f161f4adfe2ad753052a08b7ec7f1c5a6bda42b';
   const release = JSON.parse(
-    await readFile(path.join(root, 'frontend/vendor/engine-release-0.1.1.json'), 'utf8'),
+    await readFile(path.join(root, `frontend/vendor/engine-release-${releaseVersion}.json`), 'utf8'),
   );
   assert.equal(release.packageVersion, certifiedEngineIdentity.version);
   assert.equal(
@@ -380,6 +387,7 @@ export async function startLocalEngine(artifact) {
       environment: {
         NOVLEARN_ENGINE_LOCAL_URL: 'http://127.0.0.1:' + port + '/run',
         NOVLEARN_ENGINE_LOCAL_CAPABILITY: capability,
+        NOVLEARN_ENGINE_ARCHIVE_SHA256: archiveHash,
         NOVLEARN_ENGINE_PILOTS_ENABLED: 'true',
       },
       close,

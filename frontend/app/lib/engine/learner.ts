@@ -10,6 +10,7 @@ import { runEngine } from "./runtime";
 import { safeProjection, withEngineJob } from "./guards";
 import type { ExerciseSession, QuestionResult } from "./learnerTypes";
 import { GUEST_EXERCISE_LIMIT } from "../guestLimits";
+import { ENGINE_ARTIFACT_SHA256 } from "./artifact";
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie, Authorization, Origin" };
 export async function learnerIdentity(request: Request) {
     const config = engineConfiguration();
@@ -76,6 +77,7 @@ function checked<T>(r: {
     throw new EngineError(503, "Enregistrement indisponible. Réessayez."); return r.data; }
 function view(s: Saved): ExerciseSession {
     return { sessionId: s.id, exerciseId: String(s.exercise_id), versionId: s.exercise_version_id, instance: s.public_instance, metadata: s.metadata,
+        hints: Object.fromEntries(s.official.elements.filter(e=>e.type==='hint'&&e.questionId).map(e=>[e.type==='hint'?e.questionId!:"",feedback(s.official,"hint",e.type==='hint'?e.questionId!:"")])),
         questions: s.state.questions, status: s.status as ExerciseSession["status"], correct: s.state.correct ?? false, expiresAt: s.expires_at };
 }
 async function get(admin: SupabaseClient, owner: string, id: string) {
@@ -86,12 +88,16 @@ async function get(admin: SupabaseClient, owner: string, id: string) {
         throw new EngineError(410, "Cette instance a expiré.");
     return row;
 }
+function feedback(official:ExerciseInstance,type:"hint"|"explanation",id:string) {
+    return official.elements.filter(e=>e.type===type&&e.questionId===id).flatMap(e=>(e.type==='hint'||e.type==='explanation')?e.content.map(f=>f.type==='text'?f.text:f.display==='block'?`$$${f.latex}$$`:`$${f.latex}$`):[]).join("\n\n");
+}
 function reveal(official: ExerciseInstance, id: string) {
     const e = official.elements.find(e => e.id === id);
+    const explanation=feedback(official,"explanation",id);
     if (e?.type === "question")
-        return e.expected.kind === "text" ? { texts: e.expected.variants } : { latex: e.expected.math.displayLatex };
+        return e.expected.kind === "text" ? { texts: e.expected.variants, explanation } : { latex: e.expected.math.displayLatex, explanation };
     if (e?.type === "mcq")
-        return { optionIds: e.expected.optionIds };
+        return { optionIds: e.expected.optionIds, explanation };
     return undefined;
 }
 async function transition(admin: SupabaseClient, s: Saved, status: string) {
@@ -150,9 +156,9 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 if (!parent)
                     throw new EngineError(404, "Exercice introuvable.");
                 if (!parent.catalog_id)
-                    return { kind: "legacy" };
+                    throw new EngineError(422, "Cet exercice doit être migré vers Engine.");
                 const preview = !parent.active_version_id;
-                if (parent.admin_archived_at || preview && !(profile?.role === "admin" && /^\[PILOTE ADMIN M1-0[1-5]\]/.test(parent.title)))
+                if (parent.admin_archived_at || preview && profile?.role !== "admin")
                     throw new EngineError(404, "Exercice indisponible.");
                 let query = admin.from("exercise_versions").select("id,definition,definition_sha256,editorial_status").eq("exercise_id", parent.id);
                 query = preview ? query.order("revision", { ascending: false }).limit(1) : query.eq("id", parent.active_version_id);
@@ -191,7 +197,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 const projected = await runEngine("projectPublicInstance", { official: json(generated.value) }, request.signal);
                 if (!safeProjection(projected))
                     throw new EngineError(422, "Rendu de cet exercice indisponible.");
-                const metadata = { title: parent.title, app_title: parent.app_title, chapter: parent.chapter, difficulty: parent.difficulty, competences: parent.competences ?? [], mode, dsId: body.dsId ?? null, preview, guest: !!user.is_anonymous, countPoints: !user.is_anonymous && body.countPoints === true, trackAbandon: body.trackAbandon === true };
+                const metadata = { engineArtifactSha256: ENGINE_ARTIFACT_SHA256, title: parent.title, app_title: parent.app_title, chapter: parent.chapter, difficulty: parent.difficulty, competences: parent.competences ?? [], mode, dsId: body.dsId ?? null, preview, guest: !!user.is_anonymous, countPoints: !user.is_anonymous && body.countPoints === true, trackAbandon: body.trackAbandon === true };
                 const saved = checked(await admin.from("engine_exercise_sessions").insert({ id, owner_id: user.id, exercise_id: parent.id, exercise_version_id: version.id, definition_sha256: version.definition_sha256, official: generated.value, public_instance: projected, metadata }).select("*").single()) as Saved;
                 return { kind: "engine", session: view(saved) };
             }
@@ -206,6 +212,8 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 return { kind: "engine", session: await transition(admin, s, "skipped") };
             if (body.action !== "answer" || typeof body.questionId !== "string")
                 throw new EngineError(400, "Réponse invalide.");
+            if(s.metadata.engineArtifactSha256 !== ENGINE_ARTIFACT_SHA256)
+                throw new EngineError(409, "Cette instance utilise une ancienne version du moteur. Passez cet exercice pour en ouvrir un nouveau.");
             if(user.is_anonymous) await checkGuestLimit(admin,user.id);
             const question = s.official.elements.find(e => e.id === body.questionId && (e.type === "question" || e.type === "mcq"));
             if (!question)

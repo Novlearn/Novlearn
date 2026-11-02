@@ -3,7 +3,7 @@ import type { PublicInstance } from "novlearn-exercise-engine";
 import { EngineError } from "./config";
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const privateKeys = new Set(["definition", "generation", "expected", "expectedLatex", "expectedTexts", "expectedOptionIds", "policy", "optionMath", "mathFields", "extensions", "math", "source", "substituted", "syntax"]);
-const supported = new Set(["text", "section", "expression", "question", "mcq", "value-table"]);
+const supported = new Set(["text", "section", "expression", "question", "mcq", "value-table", "function-graph"]);
 export function safeProjection(value: unknown): value is PublicInstance {
     if (!object(value) || value.schemaVersion !== 5 || typeof value.title !== "string" || typeof value.instanceId !== "string" || !Array.isArray(value.elements) || Object.keys(value).sort().join(",") !== "elements,instanceId,schemaVersion,title")
         return false;

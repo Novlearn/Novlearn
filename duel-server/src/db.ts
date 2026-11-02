@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { supportsDuelElements } from "./engineEligibility";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
@@ -130,8 +131,24 @@ export async function getRandomExercise(): Promise<{
 
   if (error || !data?.length) throw new Error("No exercises available");
 
-  const nonQcm = data.filter((e) => !isQcmExercise(e));
-  const pool = nonQcm.length > 0 ? nonQcm : data;
+  const canonical = data.filter(e => e.catalog_id && e.active_version_id);
+  const eligibleIds = new Set<string>();
+  if (canonical.length) {
+    const versions = await supabase.from("exercise_versions")
+      .select("id,exercise_id,editorial_status,elements:definition->elements")
+      .in("id", canonical.map(e => e.active_version_id));
+    if (versions.error) throw new Error("Duel exercise versions unavailable");
+    for (const version of versions.data ?? []) {
+      if (version.editorial_status === "published" && supportsDuelElements(version.elements) &&
+          canonical.some(e => e.id === version.exercise_id && e.active_version_id === version.id))
+        eligibleIds.add(version.id);
+    }
+  }
+  const engineOnly = process.env.NOVLEARN_ENGINE_ENABLED === "true";
+  const available = data.filter(e => e.catalog_id ? eligibleIds.has(e.active_version_id) : !engineOnly);
+  if (!available.length) throw new Error("No exercises available");
+  const nonQcm = available.filter((e) => !isQcmExercise(e));
+  const pool = nonQcm.length > 0 ? nonQcm : available;
   const row = pool[Math.floor(Math.random() * pool.length)] as ExerciseRow;
   const variables = row.catalog_id ? {} : generateVariables(row.content?.variables ?? []);
   return { row, variables };

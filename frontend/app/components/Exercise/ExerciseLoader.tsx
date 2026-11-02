@@ -280,6 +280,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           applySession(result.session);return;
         }
         if(!exerciseId) {
+          if(process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") throw new Error("Cet exercice doit être migré vers Engine.");
           const legacy=await supabase.from("exercises").select("*").or(AVAILABLE_EXERCISES_FILTER).is("catalog_id",null).eq("id",data.id).maybeSingle();
           if(legacy.error||!legacy.data) throw new Error("Exercice indisponible.");data=legacy.data;
         }

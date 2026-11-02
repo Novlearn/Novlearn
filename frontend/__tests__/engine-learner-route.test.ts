@@ -3,7 +3,7 @@ import type { ExerciseInstance, JsonObject } from "novlearn-exercise-engine";
 import definition from "./fixtures/engine-pilot-definition.json";
 import definitions from "./fixtures/engine-pilots.json";
 vi.mock("server-only", () => ({}));
-const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, canonical: true, index: 0, seed: 42, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
+const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, canonical: true, shadow:false, index: 0, seed: 42, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
 vi.mock("node:crypto", async (original) => ({ ...await original<typeof import("node:crypto")>(), randomInt: () => state.seed }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ getAll: () => [], set: vi.fn() }) }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: vi.fn() }));
@@ -16,8 +16,13 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ auth: { getUser
                     return { role: state.role };
                 if (table === "exercises")
                     return { id: 122, title: "[PILOTE ADMIN M1-01] Test", catalog_id: state.canonical ? "catalog" : null, active_version_id: state.active ? "version" : null, competences: [], difficulty: "Facile" };
-                if (table === "exercise_versions")
-                    return [{ id: "version", definition: definitions[state.index] ?? definition, definition_sha256: "a".repeat(64), editorial_status: state.active ? "published" : "draft" }];
+                if (table === "exercise_versions") {
+                    const draft=structuredClone(definitions[state.index] ?? definition);
+                    if(state.shadow)(draft as any).extensions={legacy:{adapterVersion:"staging-catalogue-reviewed-v1"}};
+                    const questionId=draft.elements.find(e=>e.type==='question'||e.type==='mcq')!.id;
+                    draft.elements.push({id:"h",type:"hint",questionId,content:[{type:"text",text:"Une piste."}]} as any,{id:"e",type:"explanation",questionId,content:[{type:"text",text:"Un raisonnement privé."}]} as any);
+                    return [{ id: "version", definition:draft, definition_sha256: "a".repeat(64), editorial_status: state.active ? "published" : "draft" }];
+                }
                 if (insertion) {
                     const row = { ...insertion, state: { questions: {} }, revision: 0, status: "active", expires_at: new Date(Date.now() + 86400000).toISOString() };
                     state.rows.push(row);
@@ -46,6 +51,15 @@ vi.mock("../app/lib/engine/runtime", () => ({ runEngine: async (op: string, p: J
     } }));
 import { handleLearnerExercise } from "../app/lib/engine/learner";
 import {withEngineJob} from "../app/lib/engine/guards";
+it("restores old projections but never grades an active snapshot with another archive",async()=>{
+    const opened=await(await handleLearnerExercise(req({action:"open",exerciseId:"122"}))).json();
+    delete state.rows[0].metadata.engineArtifactSha256;
+    const calls=state.calls;
+    expect((await handleLearnerExercise(req({action:"resume",sessionId:opened.session.sessionId}))).status).toBe(200);
+    expect((await handleLearnerExercise(req({action:"answer",sessionId:opened.session.sessionId,questionId:"q",answer:{format:"latex",source:"2"}}))).status).toBe(409);
+    expect(state.calls).toBe(calls);
+    expect((await handleLearnerExercise(req({action:"skip",sessionId:opened.session.sessionId}))).status).toBe(200);
+});
 const req = (body: any, origin = "http://127.0.0.1:3000") => new Request("http://127.0.0.1:3000/api/exercises", { method: "PATCH", headers: { origin, authorization: "Bearer synthetic", "content-type": "application/json" }, body: JSON.stringify(body) });
 beforeEach(() => { vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("VERCEL", ""); vi.stubEnv("NOVLEARN_ENGINE_PILOTS_ENABLED", "true"); vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://tksvbkvfusrnxulpahky.supabase.co"); vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://127.0.0.1:3000"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_synthetic"); vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJub25lIn0." + Buffer.from(JSON.stringify({ ref: "tksvbkvfusrnxulpahky", role: "service_role" })).toString("base64url") + ".synthetic"); state.rows = []; state.calls = 0; state.owner = "owner"; state.role = "user"; state.authError = false; state.active = true; state.canonical = true; });
 afterEach(() => vi.unstubAllEnvs());
@@ -62,8 +76,17 @@ it("refuses oversized streamed bodies even with a small declared length",async()
     const request=new Request("http://127.0.0.1:3000/api/exercises",{method:"PATCH",headers:{origin:"http://127.0.0.1:3000",authorization:"Bearer synthetic","content-type":"application/json","content-length":"1"},body:JSON.stringify({action:"open",exerciseId:"122",answer:"x".repeat(20000)})});
     expect((await handleLearnerExercise(request)).status).toBe(413);expect(state.calls).toBe(0);
 });
-beforeEach(() => { state.index = 0; state.seed = 42; });
-it("keeps legacy catalogue delivery explicit without passing it through a guessed conversion", async () => { state.canonical = false; const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" })); expect(await r.json()).toEqual({ kind: "legacy" }); expect(state.calls).toBe(0); });
+beforeEach(() => { state.index = 0; state.seed = 42; state.shadow=false; });
+it("requires canonical migration before opening an exercise, including for Admin",async()=>{
+    state.canonical=false;state.active=false;state.shadow=true;
+    expect((await handleLearnerExercise(req({action:"open",exerciseId:"1"}))).status).toBe(422);
+    expect(state.calls).toBe(0);
+    state.role="admin";
+    const response=await handleLearnerExercise(req({action:"open",exerciseId:"1"}));
+    expect(response.status).toBe(422);
+    expect(state.calls).toBe(0);
+});
+it("refuses legacy catalogue delivery through the Engine API", async () => { state.canonical = false; const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" })); expect(r.status).toBe(422); expect(state.calls).toBe(0); });
 it("refuses draft access by a student and forged verdict/snapshot fields", async () => { state.active = false; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(404); expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122", official: {} }))).status).toBe(400); });
 it("refuses foreign origins and invalid authentication", async () => { expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }, "https://other.test"))).status).toBe(403); state.authError = true; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(401); });
 it("generates once, exposes only the projection and restores the stored instance", async () => {
@@ -71,6 +94,8 @@ it("generates once, exposes only the projection and restores the stored instance
     expect(r.status).toBe(200);
     const body = await r.json();
     expect(body.session.instance.instanceId).toBe(body.session.sessionId);
+    expect(Object.values(body.session.hints)).toContain("Une piste.");
+    expect(JSON.stringify(body)).not.toContain("Un raisonnement privé.");
     expect(JSON.stringify(body)).not.toMatch(/"(official|definition|expected|policy|generation)":/);
     const calls = state.calls;
     const again = await handleLearnerExercise(req({ action: "resume", sessionId: body.session.sessionId }));
@@ -102,6 +127,7 @@ it("preserves invalid input, two tries and a terminal verdict without client cor
     expect(correct.status).toBe("completed");
     expect(correct.correct).toBe(true);
     expect(correct.questions[question.id].reveal.latex).toBe(expected);
+    expect(correct.questions[question.id].reveal.explanation).toBe("Un raisonnement privé.");
     expect(state.rows[0].state.responses).toHaveLength(2);
     expect(JSON.stringify(correct)).not.toContain('"responses":');
     const calls = state.calls;

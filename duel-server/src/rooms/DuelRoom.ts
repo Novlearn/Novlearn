@@ -41,6 +41,7 @@ export class DuelRoom extends Room {
   private currentExercise: ExerciseRow | null = null;
   private currentVariables: Record<string, number> = {};
   private engineRound:Awaited<ReturnType<typeof prepareEngineRound>>|null=null;
+  private advancing = false;
   private roundNumber=0;
   private gradingPlayers=new Set<string>();
   /** Players who solved the current exercise correctly (max 2). */
@@ -168,27 +169,39 @@ export class DuelRoom extends Room {
   }
 
   private async advanceToNextExercise() {
-    this.clearExerciseTimer();
-    this.clearGraceTimer();
-    this.solvedPlayers.clear();
-    this.skipRequests.clear();
-    await this.loadNextExercise();
-    this.s.exerciseStartedAt = Math.floor(Date.now() / 1000);
-    this.broadcastExercise();
-    this.startExerciseTimer();
+    if (this.advancing || this.s.phase !== "playing") return;
+    this.advancing = true;
+    try {
+      this.engineRound = null;
+      this.clearExerciseTimer();
+      this.clearGraceTimer();
+      this.solvedPlayers.clear();
+      this.skipRequests.clear();
+      await this.loadNextExercise();
+      if (this.s.phase !== "playing") return;
+      this.s.exerciseStartedAt = Math.floor(Date.now() / 1000);
+      this.broadcastExercise();
+      this.startExerciseTimer();
+    } finally {
+      this.advancing = false;
+    }
   }
 
   private async handleSubmitAnswer(client: Client, msg: SubmitAnswerMsg) {
     if (this.s.phase !== "playing") return;
     const auth = client.userData as PlayerAuth;
     const round=this.engineRound;
+    if (!round && process.env.NOVLEARN_ENGINE_ENABLED === "true") {
+      client.send("answer_result", {requestId:msg.requestId,instanceId:msg.instanceId,state:"error"});
+      return;
+    }
     if(round) {
       if(this.gradingPlayers.has(auth.userId)||this.solvedPlayers.has(auth.userId)||msg.instanceId!==round.id||msg.questionId!==round.questionId||typeof msg.requestId!=="string"||msg.requestId.length>80) return;
       this.gradingPlayers.add(auth.userId);
       try {
         const verdict=await engineRun("gradeAnswer",{official:round.official,submission:{schemaVersion:5,instanceId:round.id,questionId:round.questionId,answer:msg.rawAnswer}});
         if(this.engineRound!==round||this.s.phase!=="playing") return;
-        if(verdict.instanceId!==round.id||!["correct","incorrect","invalid","indeterminate","error"].includes(verdict.state)) throw new Error("Invalid Engine verdict");
+        if(verdict.instanceId!==round.id||verdict.questionId!==round.questionId||!["correct","incorrect","invalid","indeterminate","error"].includes(verdict.state)) throw new Error("Invalid Engine verdict");
         const q=round.official.elements.find((e:any)=>e.id===round.questionId);
         const reveal=verdict.state==="correct"?{latex:q?.expected?.math?.displayLatex,texts:q?.expected?.variants}:undefined;
         if(verdict.state!=="correct"&&verdict.state!=="incorrect") {

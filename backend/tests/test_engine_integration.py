@@ -43,3 +43,17 @@ def test_taxonomy_accepts_the_existing_admin_alias_column():
     with patch('auth.get_supabase_client', return_value=client):
         result = _load_from_supabase()
     assert result['chapter_db_aliases'] == {'Chapter': ['Alias']}
+
+@pytest.mark.asyncio
+async def test_engine_ds_refuses_forged_exercise_id_without_receipt(monkeypatch):
+    from routers.ds import ds_submit
+    from schemas import SubmitDSAnswerRequest
+    monkeypatch.setenv('NOVLEARN_ENGINE_ENABLED', 'true')
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = SimpleNamespace(data={'id': 'ds'})
+    body = SubmitDSAnswerRequest(exercise_id='999999', competence_ids=['forged'], is_correct=True, difficulty='hard')
+    with patch('routers.ds.get_supabase_client', return_value=client), patch('routers.ds.soumettre_reponse_ds') as legacy:
+        with pytest.raises(HTTPException) as error:
+            await ds_submit('ds', body, {'user_id': 'owner'})
+    assert error.value.status_code == 400
+    legacy.assert_not_called()

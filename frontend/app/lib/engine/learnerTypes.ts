@@ -8,6 +8,7 @@ export type QuestionResult = {
         latex?: string;
         texts?: string[];
         optionIds?: string[];
+        explanation?: string;
     };
 };
 export type ExerciseSession = {
@@ -16,6 +17,7 @@ export type ExerciseSession = {
     versionId: string;
     instance: PublicInstance;
     metadata: Record<string, unknown>;
+    hints?: Record<string,string>;
     questions: Record<string, QuestionResult>;
     status: "active" | "completed" | "skipped" | "abandoned";
     correct: boolean;
