@@ -221,7 +221,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
           if(previous) {
             try {result=await loadEngine({action:"resume",sessionId:previous});}
             catch(e) {
-              if(!(e instanceof ExerciseRequestError)||![404,410].includes(e.status)) throw e;
+              if(!(e instanceof ExerciseRequestError)||![404,409,410].includes(e.status)) throw e;
               sessionStorage.removeItem(storageKey);
             }
           }
