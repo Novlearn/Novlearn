@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-02",
+  "projectRef": "tksvbkvfusrnxulpahky",
+  "path": "/exercices",
+  "cases": [
+    {
+      "exerciseId": 122,
+      "instanceId": "42ac575a-f013-48c6-acf1-6a4346b69c27",
+      "mathSpans": 3,
+      "correctAfterTypography": true
+    },
+    {
+      "exerciseId": 124,
+      "instanceId": "cb171e23-eb86-4a5e-a817-77c54e7b8af0",
+      "mathSpans": 2,
+      "equivalentExpressionAccepted": true
+    },
+    {
+      "exerciseId": 125,
+      "instanceId": "e0ca693c-7f8b-488f-a011-3fac9c706e59",
+      "mathSpans": 1,
+      "correctAfterTypography": true
+    }
+  ],
+  "previewOnly": true,
+  "privateAnswersIncluded": false
+}

@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-02",
+  "projectRef": "tksvbkvfusrnxulpahky",
+  "route": "/exercices",
+  "previewOnly": true,
+  "cases": [
+    {
+      "exerciseId": 122,
+      "instanceId": "d42e7072-2c99-412d-8ecf-bdc9a41bda3c",
+      "incorrectThenCorrect": true,
+      "reloadSameInstance": true
+    },
+    {
+      "exerciseId": 123,
+      "instanceId": "2837a853-9647-4658-ac86-fdbe8b3da2d1",
+      "correct": true,
+      "neutralInput": true
+    },
+    {
+      "exerciseId": 124,
+      "instanceId": "c1f8d5ff-fd9e-49e9-9991-e8a44d81a5e2",
+      "correct": true,
+      "equivalentExpression": true
+    },
+    {
+      "exerciseId": 125,
+      "instanceId": "bd88f60f-66ca-4ac0-ad9b-fd74a97cbb71",
+      "correct": true,
+      "stableChoice": true
+    },
+    {
+      "exerciseId": 126,
+      "instanceId": "bcb40b95-df83-4f4c-a280-6184aa0d1b75",
+      "correct": true,
+      "questions": 2,
+      "valueTable": true,
+      "restartSameInstance": true,
+      "restoredQuestions": 2
+    }
+  ],
+  "finalRuntimeSmoke": {
+    "exerciseId": 122,
+    "instanceId": "9d47836b-7779-49d6-8749-50da60c3051d",
+    "transientUnavailableDidNotConsumeAttempt": true,
+    "retryCorrect": true
+  },
+  "screenshot": "2026-11-engine-existing-routes.png",
+  "screenshotBeforeSubmission": true,
+  "noSubmissionsOrExpectedAnswers": true
+}
