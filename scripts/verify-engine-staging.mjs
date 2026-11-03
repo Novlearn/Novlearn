@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 export async function verifyEngineStaging() {
   const root = path.resolve(fileURLToPath(new URL('../frontend/', import.meta.url)));
-  const manifest = JSON.parse(await readFile(path.join(root, 'vendor/engine-release-0.1.8.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(path.join(root, 'vendor/engine-release-0.2.0.json'), 'utf8'));
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-  assert.equal(manifest.archiveSha256, '82e499726db2da454627903ed65802eaa2ab3e7185f7f6cb3c84c1cbdbde3cea');
+  assert.equal(manifest.archiveSha256, 'cc62b257798bda3ebffe293f49997e72ece2ee11b7f392c28e92217ceb45af91');
   assert.equal(hash(await readFile(path.join(root, 'vendor', manifest.archive))), manifest.archiveSha256);
   const installed = path.join(root, 'node_modules/novlearn-exercise-engine');
   const found = [];
@@ -25,7 +25,7 @@ export async function verifyEngineStaging() {
   assert.deepEqual(found.sort(), Object.keys(manifest.files).sort());
   for (const [filename, digest] of Object.entries(manifest.files)) assert.equal(hash(await readFile(path.join(installed, filename))), digest, filename);
   const pkg = JSON.parse(await readFile(path.join(installed, 'package.json'), 'utf8'));
-  assert.equal(pkg.version, '0.1.8'); assert.deepEqual(pkg.exports, manifest.exports);
+  assert.equal(pkg.version, '0.2.0'); assert.deepEqual(pkg.exports, manifest.exports);
   const lock = JSON.parse(await readFile(path.join(root, 'package-lock.json'), 'utf8'));
   assert.equal(lock.packages['node_modules/novlearn-exercise-engine'].integrity, manifest.archiveIntegrity);
   const require = createRequire(path.join(installed, 'package.json'));
@@ -43,5 +43,5 @@ export async function verifyEngineStaging() {
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const proof = await verifyEngineStaging();
-  console.log(`PASS: exact Engine 0.1.8, ${proof.installedFiles} installed files, exports, lock and dependency versions.`);
+  console.log(`PASS: exact Engine 0.2.0, ${proof.installedFiles} installed files, exports, lock and dependency versions.`);
 }

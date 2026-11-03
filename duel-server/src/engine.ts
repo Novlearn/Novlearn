@@ -1,16 +1,27 @@
 import { randomUUID, randomInt } from "node:crypto";
 import { supabase, type ExerciseRow } from "./db";
 import { supportsDuelElements } from "./engineEligibility";
-/** Private loopback transport to the same bounded official host as training. */
+import { ENGINE_ARTIFACT_SHA256 } from "./engineArtifact";
+/** Private server transport to the same bounded official host as training. */
 export async function engineRun(operation: string, payload: unknown): Promise<any> {
-    if (process.env.SUPABASE_URL !== "https://tksvbkvfusrnxulpahky.supabase.co" || process.env.NOVLEARN_ENGINE_ENABLED !== "true" || process.env.NOVLEARN_ENGINE_LOCAL_URL !== "http://127.0.0.1:3151/run" || !/^[a-f0-9]{64}$/.test(process.env.NOVLEARN_ENGINE_LOCAL_CAPABILITY ?? ""))
+    const environment = process.env.APP_ENV ?? 'development';
+    const expectedRef = environment === 'production' ? 'abwipnppcrghdhwriyjp' : 'tksvbkvfusrnxulpahky';
+    const url = process.env.ENGINE_URL ?? (environment === 'development' ? process.env.NOVLEARN_ENGINE_LOCAL_URL : undefined);
+    const token = process.env.ENGINE_TOKEN ?? (environment === 'development' ? process.env.NOVLEARN_ENGINE_LOCAL_CAPABILITY : undefined);
+    if (!['development', 'staging', 'production'].includes(environment) ||
+        new URL(process.env.SUPABASE_URL ?? '').origin !== `https://${expectedRef}.supabase.co` ||
+        process.env.NOVLEARN_ENGINE_ENABLED !== 'true' || !url || !/^[a-f0-9]{64}$/.test(token ?? ''))
         throw new Error("Engine host unavailable");
+    const endpoint = new URL(url);
+    if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== '/run' ||
+        (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['127.0.0.1','localhost'].includes(endpoint.hostname))))
+        throw new Error("Engine host configuration unavailable");
     const requestId = randomUUID();
     const body = JSON.stringify({ protocolVersion: 1, requestId, operation, payload });
     if (Buffer.byteLength(body) > 1048576)
         throw new Error("Engine input too large");
-    const response = await fetch(process.env.NOVLEARN_ENGINE_LOCAL_URL, { method: "POST", body, redirect: "error", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NOVLEARN_ENGINE_LOCAL_CAPABILITY}` }, signal: AbortSignal.timeout(10000) });
-    if (!response.ok || !response.body)
+    const response = await fetch(endpoint, { method: "POST", body, redirect: "error", headers: { "Content-Type": "application/json", "x-engine-archive-sha256": ENGINE_ARTIFACT_SHA256, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+    if (!response.ok || !response.body || response.headers.get("x-engine-archive-sha256") !== ENGINE_ARTIFACT_SHA256)
         throw new Error("Engine unavailable");
     const chunks: Uint8Array[] = [];
     let bytes = 0;
@@ -35,7 +46,7 @@ export async function engineRun(operation: string, payload: unknown): Promise<an
     return result.value;
 }
 export async function prepareEngineRound(row: ExerciseRow, duelId: number, round: number) {
-    const engineArchiveSha256=process.env.NOVLEARN_ENGINE_ARCHIVE_SHA256;
+    const engineArchiveSha256=ENGINE_ARTIFACT_SHA256;
     if(!/^[a-f0-9]{64}$/.test(engineArchiveSha256??"")) throw new Error("Engine archive identity unavailable");
     const parent = await supabase.from("exercises").select("active_version_id").eq("id", row.id).single();
     if (parent.error || !parent.data?.active_version_id)

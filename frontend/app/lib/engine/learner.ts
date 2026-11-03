@@ -25,7 +25,7 @@ export async function learnerIdentity(request: Request) {
     const global = { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]) }) };
     const jar = token ? null : await cookies();
     const client = token ? createClient(config.supabaseUrl, config.key, { auth: { persistSession: false }, global: { ...global, headers: { Authorization: `Bearer ${token}` } } }) :
-        createServerClient(config.supabaseUrl, config.key, { global, cookieOptions: { httpOnly: true, sameSite: "lax", secure: false, path: "/" }, cookies: { getAll: () => jar!.getAll(), setAll: values => { for (const v of values)
+        createServerClient(config.supabaseUrl, config.key, { global, cookieOptions: { httpOnly: true, sameSite: "lax", secure: config.secureCookies, path: "/" }, cookies: { getAll: () => jar!.getAll(), setAll: values => { for (const v of values)
                     jar!.set(v.name, v.value, { ...v.options, httpOnly: true }); } } });
     const { data, error } = await client.auth.getUser(token);
     if (error || !data.user)
@@ -36,10 +36,10 @@ export async function learnerIdentity(request: Request) {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!key)
         throw new EngineError(503, "Configuration serveur indisponible.");
-    // This integration is deliberately restricted to the independently verified Staging.
+    // The privileged key must match the environment selected above.
     if (key.startsWith("ey")) {
         const claims = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString());
-        if (claims.ref !== "tksvbkvfusrnxulpahky" || claims.role !== "service_role")
+        if (claims.ref !== config.projectRef || claims.role !== "service_role")
             throw new EngineError(503, "Configuration serveur refusée.");
     }
     else if (!key.startsWith("sb_secret_"))
