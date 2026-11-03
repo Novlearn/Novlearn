@@ -75,19 +75,25 @@ export default function FeedbackDashboard() {
     try {
       const { data, error } = await supabase
         .from("feedbacks")
-        .select(
-          `
-          *,
-          profiles (
-            first_name,
-            last_name
-          )
-        `,
-        )
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setFeedbacks(data || []);
+      // Author names use the explicit social projection, including for tutors.
+      const authors = new Map<string, { first_name: string; last_name: string }>();
+      const authorIds = [...new Set<string>((data || [])
+        .map((item: Feedback) => item.user_id)
+        .filter((id: string | null): id is string => typeof id === "string"))];
+      for (let offset = 0; offset < authorIds.length; offset += 100) {
+        const { data: profiles, error: profileError } = await supabase.rpc("get_public_profiles", {
+          p_ids: authorIds.slice(offset, offset + 100),
+        });
+        if (profileError) throw profileError;
+        for (const profile of profiles || []) authors.set(profile.id, profile);
+      }
+      setFeedbacks((data || []).map((item: Feedback) => ({
+        ...item, profiles: item.user_id ? authors.get(item.user_id) : undefined,
+      })));
 
       // Récupérer les noms des exercices associés
       const exerciseIds = [

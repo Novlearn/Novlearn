@@ -279,9 +279,7 @@ export default function ActiveDuelPage() {
     async function fetchAvatars() {
       const { supabase } = await import("../../../lib/supabase");
       const { data } = await supabase
-        .from("profiles")
-        .select("id, avatar_id, avatar_color")
-        .in("id", [p1Id, p2Id]);
+        .rpc("get_public_profiles", { p_ids: [p1Id, p2Id] });
       if (!data) return;
       for (const p of data) {
         if (p.id === p1Id) { setP1AvatarId(p.avatar_id); setP1AvatarColor(p.avatar_color); }
