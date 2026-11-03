@@ -11,11 +11,46 @@ jobs:
     environment: staging
     # Avoid running staging deploy for PR checks / merge refs.
     # We only deploy staging on direct pushes to the develop branch.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Validate staging deployment configuration
+        shell: bash
+        env:
+          DEPLOY_ENV: staging
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_PRODUCTION_PROJECT_REF: ${{ vars.SUPABASE_PRODUCTION_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          for name in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_KEY SUPABASE_SERVICE_ROLE_KEY VPS_HOST VPS_USERNAME VPS_SSH_KEY SUPABASE_STAGING_PROJECT_REF SUPABASE_PRODUCTION_PROJECT_REF; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required deployment configuration is missing: $name"
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REF" != "refs/heads/develop" || "$DEPLOY_ENV" != "staging" ]]; then
+            echo "::error::Staging deployment branch and GitHub environment do not match"
+            exit 1
+          fi
+          if [[ ! "$NEXT_PUBLIC_SUPABASE_URL" =~ ^https://([a-z0-9-]+)\.supabase\.co/?$ ]]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL must be a Supabase project URL"
+            exit 1
+          fi
+          actual_project_ref="${BASH_REMATCH[1]}"
+          if [[ "$SUPABASE_STAGING_PROJECT_REF" == "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" != "$SUPABASE_STAGING_PROJECT_REF" || "$actual_project_ref" == "$SUPABASE_PRODUCTION_PROJECT_REF" ]]; then
+            echo "::error::Staging Supabase URL does not match the configured staging project"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,7 +74,6 @@ jobs:
           NEXT_PUBLIC_COLYSEUS_URL: https://staging.novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
 
       - name: Create .env file for backend (staging)
         run: |
@@ -50,8 +84,6 @@ jobs:
           echo "HOST=0.0.0.0" >> backend/.env
           echo "PORT=8011" >> backend/.env
           echo "SCHEDULER_ENABLED=false" >> backend/.env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> backend/.env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
           echo "CORS_ORIGINS=https://novlearn.fr,https://www.novlearn.fr,https://staging.novlearn.fr" >> backend/.env
@@ -172,7 +204,6 @@ jobs:
             NEXT_PUBLIC_COLYSEUS_URL=https://staging.novlearn.fr/duel-ws
             NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            ADMIN_API_SECRET=${{ secrets.ADMIN_API_SECRET }}
             ENVSTAGING
 
             npm install --prefer-offline --no-audit
@@ -245,11 +276,46 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     # Avoid running production deploy for PR checks / merge refs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Validate production deployment configuration
+        shell: bash
+        env:
+          DEPLOY_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_PRODUCTION_PROJECT_REF: ${{ vars.SUPABASE_PRODUCTION_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          for name in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_KEY SUPABASE_SERVICE_ROLE_KEY VPS_HOST VPS_USERNAME VPS_SSH_KEY SUPABASE_STAGING_PROJECT_REF SUPABASE_PRODUCTION_PROJECT_REF; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required deployment configuration is missing: $name"
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REF" != "refs/heads/main" || "$DEPLOY_ENV" != "production" ]]; then
+            echo "::error::Production deployment branch and GitHub environment do not match"
+            exit 1
+          fi
+          if [[ ! "$NEXT_PUBLIC_SUPABASE_URL" =~ ^https://([a-z0-9-]+)\.supabase\.co/?$ ]]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL must be a Supabase project URL"
+            exit 1
+          fi
+          actual_project_ref="${BASH_REMATCH[1]}"
+          if [[ "$SUPABASE_STAGING_PROJECT_REF" == "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" != "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" == "$SUPABASE_STAGING_PROJECT_REF" ]]; then
+            echo "::error::Production Supabase URL does not match the configured production project"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -274,7 +340,6 @@ jobs:
           NEXT_PUBLIC_COLYSEUS_URL: https://novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
 
       # Build duel-server in CI so the VPS only installs prod deps (no tsc, no devDeps).
       - name: Build duel-server
@@ -290,8 +355,6 @@ jobs:
           echo "DEBUG=False" >> backend/.env
           echo "HOST=0.0.0.0" >> backend/.env
           echo "PORT=8010" >> backend/.env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> backend/.env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
           echo "CORS_ORIGINS=https://novlearn.fr,https://www.novlearn.fr" >> backend/.env
@@ -547,8 +610,6 @@ jobs:
             echo "NEXT_PUBLIC_COLYSEUS_URL=https://novlearn.fr/duel-ws" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> /opt/novlearn/frontend/.env.local
             echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> /opt/novlearn/frontend/.env.local
-            echo "ADMIN_API_SECRET=${{ secrets.ADMIN_API_SECRET }}" >> /opt/novlearn/frontend/.env.local
-
             export PATH="/usr/bin:/usr/local/bin:$PATH"
             ./deploy.sh
 
