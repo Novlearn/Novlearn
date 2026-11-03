@@ -7,6 +7,32 @@
 
 -- 1. Séquence auto-increment sur id
 CREATE SEQUENCE IF NOT EXISTS public.exercises_claude_id_seq;
+
+-- La table n'est créée par aucune migration antérieure. Son schéma est aligné
+-- sur celui observé en lecture seule sur Staging et Production.
+CREATE TABLE IF NOT EXISTS public.exercises_claude (
+  id              BIGINT NOT NULL DEFAULT nextval('public.exercises_claude_id_seq'::regclass),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  title           TEXT NOT NULL,
+  chapter         TEXT NOT NULL,
+  difficulty      TEXT,
+  competences     TEXT[],
+  content         JSONB NOT NULL,
+  app_title       TEXT,
+  "Is_Flash"      BOOLEAN,
+  "Need_Calculator" BOOLEAN,
+  verified        BOOLEAN NOT NULL DEFAULT false,
+  CONSTRAINT exercises_claude_pkey PRIMARY KEY (id)
+);
+
+-- Reproduire les ACL observées (RLS reste chargée de filtrer les lignes).
+GRANT ALL PRIVILEGES ON TABLE public.exercises_claude
+  TO anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON SEQUENCE public.exercises_claude_id_seq
+  TO anon, authenticated, service_role;
+
+ALTER TABLE public.exercises_claude ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE public.exercises_claude
   ALTER COLUMN id SET DEFAULT nextval('public.exercises_claude_id_seq');
 SELECT setval('public.exercises_claude_id_seq', COALESCE((SELECT MAX(id) FROM public.exercises_claude), 0) + 1, false);

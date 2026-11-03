@@ -60,6 +60,12 @@ CREATE TABLE IF NOT EXISTS public.user_competence_scores (
 
 ALTER TABLE public.user_competence_scores ENABLE ROW LEVEL SECURITY;
 
+-- La migration 006 a déjà créé ces politiques sur cette table persistante.
+-- Leur remplacement ciblé conserve exactement les prédicats attendus ici.
+DROP POLICY IF EXISTS "Users can read own competence scores" ON public.user_competence_scores;
+DROP POLICY IF EXISTS "Users can insert own competence scores" ON public.user_competence_scores;
+DROP POLICY IF EXISTS "Users can update own competence scores" ON public.user_competence_scores;
+
 CREATE POLICY "Users can read own competence scores"
   ON public.user_competence_scores FOR SELECT
   USING (auth.uid() = user_id);
