@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Legend,
   PolarAngleAxis,
@@ -19,263 +19,29 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from "recharts";
-import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
-import { useTaxonomyStore } from "../store/useTaxonomyStore";
 
-function getScoreColor(score: number) {
-  if (score >= 90)
-    return {
-      text: "text-green-400",
-      bg: "bg-gradient-to-r from-green-500 to-green-400",
-      stroke: "#22c55e",
-    };
-  if (score >= 75)
-    return {
-      text: "text-blue-400",
-      bg: "bg-gradient-to-r from-blue-500 to-blue-400",
-      stroke: "#3b82f6",
-    };
-  if (score >= 51)
-    return {
-      text: "text-yellow-400",
-      bg: "bg-gradient-to-r from-yellow-500 to-yellow-400",
-      stroke: "#eab308",
-    };
-  if (score >= 31)
-    return {
-      text: "text-orange-400",
-      bg: "bg-gradient-to-r from-orange-500 to-orange-400",
-      stroke: "#f97316",
-    };
-  return {
-    text: "text-red-400",
-    bg: "bg-gradient-to-r from-red-500 to-red-400",
-    stroke: "#ef4444",
-  };
-}
-
-interface HistoryEntry {
-  date: string;
-  score: number;
-  exerciseNumber: number;
-}
-
-interface CompetenceScore {
-  id: string;
-  name: string;
-  points: number;
-  max_points: number;
-}
-
-interface SubjectData {
-  subject: string;
-  progress: number;
-  history: HistoryEntry[];
-  totalAnswers: number;
-  correctAnswers: number;
-  competences: CompetenceScore[];
-}
-
-function formatChartDate(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-}
-
-function buildHistory(
-  attempts: { attempted_at: string; is_correct: boolean }[],
-): HistoryEntry[] {
-  if (attempts.length === 0) return [];
-  const byDate = new Map<string, { correct: number; total: number }>();
-  for (const a of attempts) {
-    const date = a.attempted_at.slice(0, 10);
-    const cur = byDate.get(date) ?? { correct: 0, total: 0 };
-    cur.total += 1;
-    if (a.is_correct) cur.correct += 1;
-    byDate.set(date, cur);
-  }
-  const sortedDates = Array.from(byDate.keys()).sort();
-  let cumCorrect = 0;
-  let cumTotal = 0;
-  const history: HistoryEntry[] = [];
-  for (const date of sortedDates) {
-    const { correct, total } = byDate.get(date)!;
-    cumCorrect += correct;
-    cumTotal += total;
-    const score = cumTotal > 0 ? Math.round((cumCorrect / cumTotal) * 100) : 0;
-    history.push({
-      date: formatChartDate(date),
-      score,
-      exerciseNumber: cumTotal,
-    });
-  }
-  return history;
-}
+import {
+  formatChartDate,
+  getScoreColor,
+  type SubjectData,
+} from "./progressUtils";
+import { useProgressData } from "./useProgressData";
 
 export function ProgressPage() {
-  const { user, loading: authLoading } = useAuth();
-  const chapters = useTaxonomyStore((state) => state.chapters);
-  const taxonomyCompetences = useTaxonomyStore((state) => state.competences);
   const router = useRouter();
   const [selectedSubject, setSelectedSubject] = useState<SubjectData | null>(
     null,
   );
-  const [data, setData] = useState<SubjectData[]>([]);
-  const [overview, setOverview] = useState<{
-    totalAnswers: number;
-    correctAnswers: number;
-    distinctExercises: number;
-  }>({ totalAnswers: 0, correctAnswers: 0, distinctExercises: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchProgress = useCallback(async () => {
-    if (!user) {
-      setData(
-        chapters.map((s) => ({
-          subject: s,
-          progress: 0,
-          history: [],
-          totalAnswers: 0,
-          correctAnswers: 0,
-          competences: [],
-        })),
-      );
-      setOverview({ totalAnswers: 0, correctAnswers: 0, distinctExercises: 0 });
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const [
-        { data: attemptsData, error: attemptsErr },
-        { data: scoresData, error: scoresErr },
-      ] = await Promise.all([
-        supabase
-          .from("exercise_attempts")
-          .select("exercise_id, is_correct, attempted_at")
-          .eq("user_id", user.id),
-        supabase
-          .from("user_competence_scores")
-          .select("competence_id, points")
-          .eq("user_id", user.id),
-      ]);
-
-      if (attemptsErr) {
-        console.warn(
-          "[ProgressPage] exercise_attempts query:",
-          attemptsErr.message,
-        );
-      }
-      const attempts = attemptsData ?? [];
-      const exerciseIds = [
-        ...new Set(attempts.map((a) => a.exercise_id).filter(Boolean)),
-      ] as number[];
-      let exercisesMap: Record<number, string> = {};
-      if (exerciseIds.length > 0) {
-        const { data: exData } = await supabase
-          .from("exercises")
-          .select("id, chapter")
-          .in("id", exerciseIds);
-        if (exData)
-          exercisesMap = Object.fromEntries(
-            exData.map((e) => [e.id, e.chapter ?? ""]),
-          );
-      }
-      const totalAnswers = attempts.length;
-      const correctAnswers = attempts.filter((a) => a.is_correct).length;
-      const distinctExercises = exerciseIds.length;
-      setOverview({ totalAnswers, correctAnswers, distinctExercises });
-
-      const scoresByCompetence = new Map<string, number>();
-      if (!scoresErr && scoresData) {
-        scoresData.forEach((r) =>
-          scoresByCompetence.set(r.competence_id, r.points),
-        );
-      }
-
-      const byChapter = new Map<
-        string,
-        { is_correct: boolean; attempted_at: string }[]
-      >();
-      for (const a of attempts) {
-        const chapter = exercisesMap[a.exercise_id] ?? "Autre";
-        if (!byChapter.has(chapter)) byChapter.set(chapter, []);
-        byChapter
-          .get(chapter)!
-          .push({ is_correct: a.is_correct, attempted_at: a.attempted_at });
-      }
-
-      const chapterToCompetences = new Map<string, CompetenceScore[]>();
-      for (const c of taxonomyCompetences) {
-        const points = scoresByCompetence.get(c.id) ?? 0;
-        const comp: CompetenceScore = {
-          id: c.id,
-          name: c.name,
-          points,
-          max_points: c.max_points,
-        };
-        if (!chapterToCompetences.has(c.chapter))
-          chapterToCompetences.set(c.chapter, []);
-        chapterToCompetences.get(c.chapter)!.push(comp);
-      }
-
-      const chapterNames = [...chapters];
-      const built: SubjectData[] = chapterNames.map((subject) => {
-        const competences = chapterToCompetences.get(subject) ?? [];
-        const chapterAttempts = byChapter.get(subject) ?? [];
-        const history = buildHistory(chapterAttempts);
-        const totalAnswers = chapterAttempts.length;
-        const correctAnswers = chapterAttempts.filter(
-          (a) => a.is_correct,
-        ).length;
-        // Progress = competence mastery (points earned / max points)
-        const totalCompPoints = competences.reduce((sum, c) => sum + c.points, 0);
-        const totalCompMax = competences.reduce((sum, c) => sum + c.max_points, 0);
-        const masteryPct = totalCompMax > 0
-          ? Math.round((totalCompPoints / totalCompMax) * 100)
-          : 0;
-        return {
-          subject,
-          progress: masteryPct,
-          history,
-          totalAnswers,
-          correctAnswers,
-          competences,
-        };
-      });
-
-      setData(built);
-    } catch (e) {
-      console.error("[ProgressPage] fetchProgress:", e);
-      setData(
-        chapters.map((s) => ({
-          subject: s,
-          progress: 0,
-          history: [],
-          totalAnswers: 0,
-          correctAnswers: 0,
-          competences: [],
-        })),
-      );
-      setOverview({ totalAnswers: 0, correctAnswers: 0, distinctExercises: 0 });
-    } finally {
-      setLoading(false);
-    }
-  }, [user, chapters, taxonomyCompetences]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    fetchProgress();
-  }, [authLoading, fetchProgress]);
-
-  // Refetch when user comes back to the tab (e.g. after solving an exercise elsewhere)
-  useEffect(() => {
-    const onFocus = () => user && fetchProgress();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [user, fetchProgress]);
+  const {
+    user,
+    authLoading,
+    chapters,
+    data,
+    overview,
+    loading,
+    error,
+    refetch: fetchProgress,
+  } = useProgressData();
 
   // Custom tick pour rendre les labels cliquables
   const CustomAngleAxisTick = ({ payload, x, y, cx, cy }: any) => {

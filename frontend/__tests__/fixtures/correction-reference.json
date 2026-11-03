@@ -1,0 +1,369 @@
+{
+  "version": 1,
+  "scope": "Synthetic public cases; no catalogue export. Mathematical propositions have explicit reasoning, pending product conventions remain null.",
+  "review": "Author reasoning only; pedagogical review pending. reference=true/false is a proposed mathematical expectation; observed characterizes the existing engine.",
+  "cases": [
+    {
+      "id": "fraction-number",
+      "format": "number",
+      "input": "1/2",
+      "expected": "0.5",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Deux écritures de 1/2."
+    },
+    {
+      "id": "wrong-number",
+      "format": "number",
+      "input": "3",
+      "expected": "2",
+      "variables": {},
+      "observed": false,
+      "reference": false,
+      "reason": "3 != 2."
+    },
+    {
+      "id": "latex-fraction",
+      "format": "number",
+      "input": "\\frac{1}{2}",
+      "expected": "0.5",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Fraction LaTeX simple."
+    },
+    {
+      "id": "radical",
+      "format": "number",
+      "input": "sqrt(8)",
+      "expected": "2sqrt(2)",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Identité dans R."
+    },
+    {
+      "id": "decimal-comma",
+      "format": "number",
+      "input": "1,5",
+      "expected": "1.5",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Convention décimale française."
+    },
+    {
+      "id": "empty-answer",
+      "format": "number",
+      "input": "",
+      "expected": "2",
+      "variables": {},
+      "observed": false,
+      "reference": false,
+      "reason": "Absence de réponse."
+    },
+    {
+      "id": "polynomial",
+      "format": "expression",
+      "input": "2(x+1)",
+      "expected": "2x+2",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Identité polynomiale."
+    },
+    {
+      "id": "factorization",
+      "format": "expression",
+      "input": "x^2-1",
+      "expected": "(x-1)(x+1)",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Identité polynomiale."
+    },
+    {
+      "id": "trigonometry",
+      "format": "expression",
+      "input": "sin(x)^2+cos(x)^2",
+      "expected": "1",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Identité sur R."
+    },
+    {
+      "id": "two-variables",
+      "format": "expression",
+      "input": "x+t",
+      "expected": "x+1",
+      "variables": {},
+      "observed": true,
+      "reference": false,
+      "reason": "Contre-exemple x=0,t=2."
+    },
+    {
+      "id": "unknown-variable",
+      "format": "expression",
+      "input": "2(y+1)",
+      "expected": "2y+2",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Identité pour tout y réel."
+    },
+    {
+      "id": "unicode-power",
+      "format": "expression",
+      "input": "x²",
+      "expected": "x*x",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Puissance Unicode; convention de saisie à confirmer."
+    },
+    {
+      "id": "undefined-identical",
+      "format": "expression",
+      "input": "1/0",
+      "expected": "1/0",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Domaine vide: statut invalid attendu à discuter; un booléen ne le distingue pas."
+    },
+    {
+      "id": "domain-hole",
+      "format": "expression",
+      "input": "(x-1)/(x-1)",
+      "expected": "1",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Domaines différents en x=1; politique de comparaison à décider."
+    },
+    {
+      "id": "sqrt-domain",
+      "format": "expression",
+      "input": "sqrt(x)^2",
+      "expected": "x",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Domaines différents pour x<0; politique à décider."
+    },
+    {
+      "id": "invalid-brackets",
+      "format": "interval",
+      "input": "a1;2b",
+      "expected": "[1;2]",
+      "variables": {},
+      "observed": true,
+      "reference": false,
+      "reason": "a et b ne sont pas des délimiteurs d'intervalle."
+    },
+    {
+      "id": "interval-equal",
+      "format": "interval",
+      "input": "[1;2]",
+      "expected": "[1;2]",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Même intervalle."
+    },
+    {
+      "id": "interval-open",
+      "format": "interval",
+      "input": "]1;2[",
+      "expected": "[1;2]",
+      "variables": {},
+      "observed": false,
+      "reference": false,
+      "reason": "Extrémités ouvertes et fermées différentes."
+    },
+    {
+      "id": "set-order",
+      "format": "set",
+      "input": "{2;1}",
+      "expected": "{1;2}",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "L'ordre des éléments d'un ensemble est indifférent."
+    },
+    {
+      "id": "set-duplicate",
+      "format": "set",
+      "input": "{1;1;2}",
+      "expected": "{1;2}",
+      "variables": {},
+      "observed": true,
+      "reference": true,
+      "reason": "Un ensemble n'a pas de multiplicité."
+    },
+    {
+      "id": "set-singleton",
+      "format": "set",
+      "input": "{2}",
+      "expected": "2",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Singleton {2}; syntaxe canonique d'ensemble."
+    },
+    {
+      "id": "set-empty",
+      "format": "set",
+      "input": "\\emptyset",
+      "expected": "{}",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Deux notations usuelles de l'ensemble vide."
+    },
+    {
+      "id": "set-escaped",
+      "format": "set",
+      "input": "\\{2;1\\}",
+      "expected": "{1;2}",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Accolades LaTeX d'ensemble."
+    },
+    {
+      "id": "negative-substitution",
+      "format": "number",
+      "input": "4",
+      "expected": "@a^2",
+      "variables": {
+        "a": -2
+      },
+      "observed": false,
+      "reference": true,
+      "reason": "a=-2 implique a^2=4."
+    },
+    {
+      "id": "rational-parameter",
+      "format": "number",
+      "input": "0.5",
+      "expected": "@a",
+      "variables": {
+        "a": "1/2"
+      },
+      "observed": false,
+      "reference": true,
+      "reason": "Paramètre a='1/2'; representation des paramètres à confirmer."
+    },
+    {
+      "id": "nested-radical",
+      "format": "number",
+      "input": "\\sqrt{\\frac{1}{2}}",
+      "expected": "sqrt(0.5)",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Racine d'une fraction positive."
+    },
+    {
+      "id": "absolute-latex",
+      "format": "number",
+      "input": "\\left|-2\\right|",
+      "expected": "2",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Valeur absolue."
+    },
+    {
+      "id": "scientific",
+      "format": "number",
+      "input": "1e3",
+      "expected": "1000",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Notation scientifique."
+    },
+    {
+      "id": "latex-spacing",
+      "format": "number",
+      "input": "1\\,2",
+      "expected": "12",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Une espace fine LaTeX n'est pas une décimale; saisie autorisée à confirmer."
+    },
+    {
+      "id": "complex-order",
+      "format": "complex",
+      "input": "1+i",
+      "expected": "i+1",
+      "variables": {},
+      "observed": false,
+      "reference": true,
+      "reason": "Commutativité de l'addition dans C."
+    },
+    {
+      "id": "rounding-tolerance",
+      "format": "number",
+      "input": "1.00009",
+      "expected": "1",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Tolérance actuelle 1e-4; tolérance métier à décider."
+    },
+    {
+      "id": "fraction-decimal",
+      "format": "fraction",
+      "input": "0.5",
+      "expected": "1/2",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Fraction requise ou simple valeur équivalente à décider."
+    },
+    {
+      "id": "boolean-number",
+      "format": "number",
+      "input": "true",
+      "expected": "1",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "MathJS convertit true en 1; grammaire élève à décider."
+    },
+    {
+      "id": "assignment-number",
+      "format": "number",
+      "input": "a=2",
+      "expected": "2",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "MathJS accepte une affectation; grammaire élève à décider."
+    },
+    {
+      "id": "text-case",
+      "format": "text",
+      "input": " OUI ",
+      "expected": "oui",
+      "variables": {},
+      "observed": true,
+      "reference": null,
+      "reason": "Casse et espaces ignorés actuellement; politique texte à décider."
+    }
+  ],
+  "provenance": {
+    "author": "Codex",
+    "createdAt": "2026-10-09",
+    "reviewer": null,
+    "reviewStatus": "pending human mathematical and pedagogical review",
+    "baseRevision": "907fb09",
+    "domainPolicy": "No domain policy is imposed; domain-dependent cases have reference=null."
+  }
+}

@@ -40,7 +40,14 @@ npm run db:start   # Start local Supabase instance
 npm run db:stop    # Stop local Supabase instance
 ```
 
-### Start Both Services
+### Duel server (Colyseus, real-time 1v1)
+```bash
+cd duel-server
+npm install
+npm run dev      # Colyseus on ws://localhost:2567
+```
+
+### Start All Three Services
 ```bash
 # Windows
 start-dev.bat
@@ -83,13 +90,13 @@ Uses **Next.js App Router**. All routes are under `frontend/app/`.
 - `renderers/` — one renderer component per element type (e.g. `EquationRenderer`, `GraphRenderer`).
 - `components/Exercise/ExerciseRenderer.tsx` — orchestrates rendering all elements of an exercise.
 - `utils/variableGenerator.ts` — generates random variable values respecting `min`/`max`/`exclusions`.
-- `utils/MathParser.ts` — evaluates math expressions with variable substitution using `mathjs`.
+- `utils/math/` — expression handling split by concern: `parsing.ts`, `evaluation.ts` (variable substitution via `mathjs`), `simplification.ts`, `formatting.ts`.
 
 **Taxonomy** (chapters + competences):
 - `services/taxonomyService.ts` — fetches chapters and competences from Supabase DB.
 - `store/useTaxonomyStore.ts` — Zustand store caching taxonomy data.
 
-**Key pages**: `/entrainement` (training), `/duel` (1v1 duel), `/progression` (progress), `/cours` (chapters/lessons), `/classement` (leaderboard).
+**Key pages**: `/entrainement` (training), `/duel` (1v1 duel), `/progression` (progress), `/flashcards`, `/ds` (mock exams), `/classement` (leaderboard).
 
 ### Backend (`backend/`)
 
@@ -102,11 +109,23 @@ Uses **Next.js App Router**. All routes are under `frontend/app/`.
 - High streak → hardest competences at higher difficulty
 
 **Settings** (`backend/settings/`):
-- `competence_settings.py` + `competences.json` — competence IDs and max_points per chapter
+- `competence_settings.py` — loads competence IDs and max_points from the `competences` table (cached in-process)
 - `recommandation_settings.py` — streak thresholds and difficulty distribution parameters
-- `duel_settings.py` — duel timing constants
 
 **Chapter placement test** (`chapter_placement_test.py`): Tests users on a chapter before allowing free practice; uses adaptive questioning.
+
+### Duel server (`duel-server/`)
+
+Colyseus room server holding the authoritative real-time state of a 1v1 duel.
+The FastAPI backend owns the **lobby** (invitations, accept/decline, history);
+this service owns the **match** itself.
+
+- `src/rooms/DuelRoom.ts` — room lifecycle, answer submission, scoring, timers.
+- `src/rooms/schema/DuelState.ts` — synchronized state schema.
+- `src/config.ts` — single source of truth for duel timings (duration, per-exercise timeout).
+- `src/db.ts` — Supabase writes with the service key.
+
+The frontend connects via `app/lib/colyseusClient.ts` (`NEXT_PUBLIC_COLYSEUS_URL`).
 
 ### Database (Supabase + PostgreSQL)
 

@@ -46,7 +46,7 @@ export default function SitemapPage() {
             title="Aide & Infos"
           >
             <SitemapLink href="/cgu">Conditions d'Utilisation</SitemapLink>
-            <SitemapLink href="/privacy">
+            <SitemapLink href="/politique-confidentialite">
               Politique de Confidentialité
             </SitemapLink>
             <SitemapLink href="mailto:contact@novlearn.fr">

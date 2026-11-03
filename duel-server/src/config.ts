@@ -2,8 +2,6 @@
 
 /**
  * Total duel duration in seconds.
- * Kept in sync with `frontend/app/settings/duelSettings.ts` and
- * `backend/settings/duel_settings.py`.
  *
  * 180s = 3 minutes.
  */

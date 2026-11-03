@@ -2,7 +2,7 @@
 
 import { Layout } from "@/app/components/Layout";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { useTheme } from "@/app/contexts/ThemeContext";
+import { useTheme } from "next-themes";
 import { supabase } from "@/app/lib/supabase";
 import { Bell, Sliders, User } from "lucide-react";
 import { useEffect, useState } from "react";

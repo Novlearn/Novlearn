@@ -15,7 +15,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["app/lib/**/*.ts"],
+      include: ["app/lib/**/*.ts", "app/utils/math/**/*.ts", "app/utils/variableGenerator.ts", "app/renderers/{Question,Equation,MCQ}Renderer.tsx", "app/components/Exercise/ExerciseLoader.tsx"],
       exclude: ["app/lib/supabase*.ts", "app/lib/colyseusClient.ts"],
     },
   },

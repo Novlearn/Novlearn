@@ -1,21 +1,31 @@
 {
+  "name": "novlearn",
+  "private": true,
+  "description": "Scripts d'orchestration du monorepo. Les dépendances applicatives vivent dans frontend/ et duel-server/.",
   "scripts": {
     "db:push": "supabase db push",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
-    "test": "npm run test:backend & npm run test:duel & npm run test:frontend",
+    "test": "npm run test:backend && npm run test:duel && npm run test:frontend",
     "test:backend": "cd backend && python -m pytest",
     "test:duel": "cd duel-server && npm test",
     "test:frontend": "cd frontend && npm test",
-    "test:coverage": "cd backend && python -m pytest --cov=. --cov-report=term-missing && cd ../duel-server && npm run test:coverage && cd ../frontend && npm run test:coverage"
-  },
-  "dependencies": {
-    "@cortex-js/compute-engine": "^0.30.2",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.95.3",
-    "serwist": "^9.5.6"
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:duel && npm run test:coverage:frontend",
+    "test:coverage:backend": "cd backend && python -m pytest --cov=. --cov-report=term-missing",
+    "test:coverage:duel": "cd duel-server && npm run test:coverage",
+    "test:coverage:frontend": "cd frontend && npm run test:coverage",
+    "db:sync:catalog": "node scripts/sync-catalog.mjs",
+    "test:catalog-sync": "node --test scripts/sync-catalog.test.mjs",
+    "test:correction": "npm run test:correction:backend && npm run test:frontend && npm run test:duel && npm run test:correction:scripts",
+    "test:correction:backend": "node scripts/correction-backend-tests.mjs",
+    "test:correction:scripts": "node --test scripts/correction-catalog.test.mjs scripts/correction-triggers.test.mjs",
+    "correction:catalog:export": "node scripts/correction-catalog.mjs --export",
+    "correction:catalog:verify": "node scripts/correction-catalog.mjs --verify",
+    "correction:catalog:replay": "node scripts/correction-replay.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "pg": "^8.23.1",
     "supabase": "^2.98.2"
   }
 }

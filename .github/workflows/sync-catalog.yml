@@ -1,0 +1,55 @@
+name: Sync production catalog to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply changes to staging (unchecked = read-only preview)"
+        type: boolean
+        default: false
+      flashcards:
+        description: "Also synchronize flashcards"
+        type: boolean
+        default: false
+
+      adopt_existing:
+        description: "Adopt matching IDs from an existing production copy (overwrites conflicts)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-catalog-staging
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Synchronize catalog
+        env:
+          CATALOG_PRODUCTION_PROJECT_REF: ${{ secrets.CATALOG_PRODUCTION_PROJECT_REF }}
+          CATALOG_STAGING_PROJECT_REF: ${{ secrets.CATALOG_STAGING_PROJECT_REF }}
+          CATALOG_PRODUCTION_DB_URL: ${{ secrets.CATALOG_PRODUCTION_DB_URL }}
+          CATALOG_STAGING_DB_URL: ${{ secrets.CATALOG_STAGING_DB_URL }}
+          ADOPT_EXISTING: ${{ inputs.adopt_existing }}
+          APPLY: ${{ inputs.apply }}
+          FLASHCARDS: ${{ inputs.flashcards }}
+        shell: bash
+        run: |
+          args=()
+          if [ "$APPLY" = "true" ]; then args+=(--apply); fi
+          if [ "$FLASHCARDS" = "true" ]; then args+=(--flashcards); fi
+          if [ "$ADOPT_EXISTING" = "true" ]; then args+=(--adopt-existing); fi
+          npm run db:sync:catalog -- "${args[@]}"

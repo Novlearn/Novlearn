@@ -1,14 +1,16 @@
 """
-Tests d'intégration API FastAPI (backend/main.py).
+Tests d'intégration API FastAPI (backend/main.py + backend/routers/).
 
 Stratégie :
   - Le scheduler APScheduler est mocké pour éviter les connexions Supabase au démarrage.
   - La dépendance verify_token est remplacée par app.dependency_overrides (FastAPI natif).
-  - get_supabase_client est patché par test (contextmanager) pour contrôler les réponses DB.
+  - get_supabase_client est patché par test via patch_supabase() : chaque router
+    importe le symbole dans son propre espace de noms, il faut donc les patcher tous.
   - Tests couverts : health, authentification, validation Pydantic, endpoints clés.
 """
 import os
 import sys
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -28,6 +30,27 @@ FAKE_USER = {
     "user": MagicMock(),
 }
 AUTH_HEADERS = {"Authorization": "Bearer test-token"}
+
+# Chaque router fait `from auth import get_supabase_client`, ce qui lie le nom
+# dans son propre module : patcher auth.get_supabase_client serait sans effet.
+ROUTER_MODULES = (
+    "routers.recommendation",
+    "routers.friends",
+    "routers.duels",
+    "routers.ds",
+    "routers.notifications",
+)
+
+
+@contextmanager
+def patch_supabase(mock_sb):
+    """Remplace get_supabase_client par mock_sb dans tous les routers."""
+    with ExitStack() as stack:
+        for module in ROUTER_MODULES:
+            stack.enter_context(
+                patch(f"{module}.get_supabase_client", return_value=mock_sb)
+            )
+        yield mock_sb
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -148,8 +171,8 @@ class TestRequestValidation:
         assert resp.status_code == 422
 
     def test_create_ds_with_all_fields_passes_validation(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
-            with patch("main.initialiser_scores_ds"):
+        with patch_supabase(mock_sb):
+            with patch("routers.ds.initialiser_scores_ds"):
                 resp = client.post(
                     "/api/ds",
                     json={
@@ -171,7 +194,7 @@ class TestRequestValidation:
         assert resp.status_code == 422
 
     def test_update_notif_preferences_with_all_fields_passes(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.put(
                 "/api/notifications/preferences",
                 json={
@@ -191,7 +214,7 @@ class TestRequestValidation:
 class TestFriendsEndpoints:
 
     def test_get_friends_list_returns_200(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/friends", headers=AUTH_HEADERS)
         assert resp.status_code == 200
         # L'API enveloppe la liste dans un objet {"friends": [...]}
@@ -199,7 +222,7 @@ class TestFriendsEndpoints:
         assert isinstance(body, (list, dict))
 
     def test_get_friend_requests_returns_200(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/friends/requests", headers=AUTH_HEADERS)
         assert resp.status_code == 200
         body = resp.json()
@@ -210,7 +233,7 @@ class TestFriendsEndpoints:
         mock_sb.table.return_value.execute.return_value = MagicMock(
             data=[{"code": "ABCD1234"}]
         )
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/friends/code", headers=AUTH_HEADERS)
         assert resp.status_code == 200
         data = resp.json()
@@ -218,7 +241,7 @@ class TestFriendsEndpoints:
         assert "invite_link" in data
 
     def test_delete_friend_endpoint_exists(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.delete("/api/friends/some-friend-id", headers=AUTH_HEADERS)
         # 200, 404 ou 500 mais pas 405 (method not allowed)
         assert resp.status_code != 405
@@ -229,21 +252,21 @@ class TestFriendsEndpoints:
 class TestDuelEndpoints:
 
     def test_get_pending_duels_returns_list(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/duels/pending", headers=AUTH_HEADERS)
         assert resp.status_code == 200
         body = resp.json()
         assert isinstance(body, (list, dict))
 
     def test_get_duel_history_returns_list(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/duels/history", headers=AUTH_HEADERS)
         assert resp.status_code == 200
         body = resp.json()
         assert isinstance(body, (list, dict))
 
     def test_get_active_duel_returns_200_or_404(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/duels/active", headers=AUTH_HEADERS)
         assert resp.status_code in (200, 404)
 
@@ -253,12 +276,12 @@ class TestDuelEndpoints:
 class TestDsEndpoints:
 
     def test_list_ds_returns_200(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/ds", headers=AUTH_HEADERS)
         assert resp.status_code == 200
 
     def test_get_nonexistent_ds_returns_404(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.get("/api/ds/non-existent-ds-id", headers=AUTH_HEADERS)
         assert resp.status_code in (404, 500)
 
@@ -281,7 +304,7 @@ class TestNotificationEndpoints:
         assert resp.status_code == 422
 
     def test_subscribe_push_with_all_fields(self, client, mock_sb):
-        with patch("main.get_supabase_client", return_value=mock_sb):
+        with patch_supabase(mock_sb):
             resp = client.post(
                 "/api/notifications/subscribe",
                 json={

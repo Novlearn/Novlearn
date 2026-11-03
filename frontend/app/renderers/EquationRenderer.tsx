@@ -8,7 +8,7 @@ import {
   RendererProps,
 } from "../types/exercise";
 import { checkAnswer } from "../utils/math/evaluation";
-import { simplifyLatexExpression } from "../utils/math/simplication";
+import { simplifyLatexExpression } from "../utils/math/simplification";
 
 interface EquationRendererProps extends RendererProps<EquationContent> {
   onSubmit?: (answer: string, isCorrect: boolean) => void;

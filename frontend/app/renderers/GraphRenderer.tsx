@@ -6,7 +6,7 @@ import Latex from "../components/ui/Latex";
 import { GraphBound, GraphContent, RendererProps, VariableValues } from "../types/exercise";
 import { evaluate, toMathJsSyntax } from "../utils/math/evaluation";
 import { substituteVariables } from "../utils/math/parsing";
-import { simplifyLatexExpression } from "../utils/math/simplication";
+import { simplifyLatexExpression } from "../utils/math/simplification";
 
 // Rapport hauteur / largeur du graphe (paysage mathématique standard)
 const ASPECT = 2 / 3;

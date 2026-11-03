@@ -1,5 +1,4 @@
 .cursor
-CLAUDE.md
 
 # Dependencies
 node_modules/
@@ -40,3 +39,16 @@ yarn-debug.log*
 *.sqlite
 *.sqlite3
 
+# Coverage / test artifacts
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.vitest/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Private exercise correction corpus (L0)
+/.local/exercise-correction/

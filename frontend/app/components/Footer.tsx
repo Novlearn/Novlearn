@@ -57,7 +57,7 @@ export function Footer() {
             <h3 className="text-content-strong font-semibold mb-4">Support</h3>
             <ul className="space-y-2 text-sm">
               <FooterLink href="/cgu">Conditions d'utilisation</FooterLink>
-              <FooterLink href="/privacy">Politique de confidentialité</FooterLink>
+              <FooterLink href="/politique-confidentialite">Politique de confidentialité</FooterLink>
               <FooterLink href="/support/besoin-aide">Besoin d'aide</FooterLink>
               <FooterLink href="/support/forum">Forum / FAQ</FooterLink>
               <FooterLink href="mailto:support@novlearn.fr">Nous contacter</FooterLink>
@@ -90,7 +90,7 @@ export function Footer() {
           <p>&copy; {currentYear} NovLearn. Tous droits réservés.</p>
           <div className="flex gap-6">
             <Link
-              href="/privacy"
+              href="/politique-confidentialite"
               className="hover:text-content-main transition-colors"
             >
               Confidentialité

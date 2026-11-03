@@ -1,472 +1,185 @@
 # Novlearn
 
-Plateforme d'entraînement ludique et personnalisée pour le Bac de mathématiques.
+Plateforme d'entraînement ludique et personnalisée pour le Bac de mathématiques :
+recommandation adaptative d'exercices, duels 1v1 en temps réel, suivi de progression
+par compétence et test de positionnement par chapitre.
 
-## 🚀 Démarrage rapide
+## Architecture
+
+Trois services, une base Supabase.
+
+```
+Navigateur ──HTTP──▶ Next.js (3000) ──▶ FastAPI (8010) ──▶ Supabase
+     │                    │
+     └──WebSocket──▶ Colyseus duel-server (2567) ──▶ Supabase
+```
+
+| Service | Rôle | Port |
+|---|---|---|
+| `frontend/` | Next.js 15 (App Router), React 18, Tailwind, TypeScript | 3000 |
+| `backend/` | FastAPI — recommandation, amis, duels (lobby), DS, notifications | 8010 |
+| `duel-server/` | Colyseus — état temps réel des duels 1v1 | 2567 |
+| `supabase/` | Migrations PostgreSQL, RLS | — |
+
+`ARCHITECTURE.md` détaille le moteur d'exercices, le schéma de base et le CI/CD.
+
+## Démarrage rapide
 
 ### Prérequis
 
-- **Node.js** 18+ et npm/yarn
-- **Python** 3.11+
-- **PostgreSQL** 15+ (optionnel pour le développement initial)
+- Node.js 18+
+- Python 3.11+
+- Un projet Supabase (aucun PostgreSQL local n'est nécessaire)
 
-### Installation
-
-#### 1. Frontend (Next.js)
+### Les trois services d'un coup
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# Windows
+start-dev.bat
+# Linux/Mac
+./start-dev.sh
 ```
 
-Le frontend sera accessible sur [http://localhost:3000](http://localhost:3000)
-
-#### 2. Backend (FastAPI)
+### Ou service par service
 
 ```bash
+# Frontend  →  http://localhost:3000
+cd frontend && npm install && npm run dev
+
+# Backend   →  http://localhost:8010
 cd backend
-
-# Sur Windows
-.\venv\Scripts\Activate.ps1
-
-# Sur Linux/Mac
-python -m venv venv
-source venv/bin/activate
-
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Linux/Mac
 pip install -r requirements.txt
 python main.py
+
+# Duel-server  →  ws://localhost:2567
+cd duel-server && npm install && npm run dev
 ```
 
-Le backend sera accessible sur [http://localhost:8000](http://localhost:8000)
-
-#### 3. Duel-server (Colyseus, temps réel 1v1)
-
-Le système de duels temps réel repose sur un **troisième service** dédié :
-
-```bash
-cd duel-server
-npm install
-npm run dev
-```
-
-- Le duel-server écoute par défaut sur `http://localhost:2567`.
-- Le frontend y accède via WebSocket (`NEXT_PUBLIC_COLYSEUS_URL`, par défaut `http://localhost:2567` en dev).
-
-> **En dev**, pour lancer les trois services d’un coup, vous pouvez utiliser les scripts racine :
-> - Windows : `start-dev.bat`
-> - Linux/Mac : `./start-dev.sh`
+En développement, `next.config.mjs` proxifie `/api/*` vers `http://localhost:8010`.
+En production, c'est Apache qui assure le reverse proxy.
 
 ### Vérification
 
-- Frontend : [http://localhost:3000](http://localhost:3000)
-- Backend API : [http://localhost:8000](http://localhost:8000)
-- Duel-server WebSocket : `ws://localhost:2567` (Colyseus)
-- Health check : [http://localhost:8000/api/health](http://localhost:8000/api/health)
+- Frontend : <http://localhost:3000>
+- Health check backend : <http://localhost:8010/api/health>
 
-> **Note** : Pour que l'authentification fonctionne en local, voir [GUIDE_LOCAL_SETUP.md](GUIDE_LOCAL_SETUP.md)
+## Configuration
 
-## 📁 Structure du projet
-
-```
-novlearn/
-├── frontend/          # Application Next.js
-│   ├── app/          # Pages et composants
-│   ├── components/   # Composants React réutilisables
-│   └── public/       # Fichiers statiques
-├── backend/          # API FastAPI
-│   ├── main.py       # Point d'entrée de l'API
-│   └── requirements.txt
-└── docs_projet/      # Documentation du projet
-```
-
-## 🛠️ Technologies utilisées
-
-### Frontend
-- **React 18+** : Bibliothèque JavaScript pour interfaces utilisateur
-- **Next.js 14+** : Framework React avec routing
-- **Tailwind CSS** : Framework CSS utility-first
-- **TypeScript** : Typage statique
-
-### Backend
-- **Python 3.11+** : Langage serveur
-- **FastAPI** : Framework moderne pour API REST asynchrone
-- **PostgreSQL** : Base de données relationnelle
-- **SQLAlchemy** : ORM Python
-
-## 📝 Développement
-
-### Commandes utiles
-
-**Frontend :**
-```bash
-npm run dev      # Développement avec hot-reload
-npm run build    # Build de production
-npm run start    # Serveur de production
-npm run lint     # Vérification du code
-```
-
-**Backend :**
-```bash
-python main.py                    # Lancement avec auto-reload
-uvicorn main:app --reload         # Alternative avec uvicorn
-```
-
-## 🔧 Configuration
-
-### Variables d'environnement
-
-#### Frontend (Supabase)
-
-Créez un fichier `.env.local` dans le dossier `frontend/` :
+### `frontend/.env.local`
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://votre-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-anon-key-ici
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-anon-key
+NEXT_PUBLIC_COLYSEUS_URL=http://localhost:2567
+NEXT_PUBLIC_SITE_URL=https://novlearn.fr   # production uniquement
 ```
 
-**Où trouver ces valeurs ?**
-- Aller sur https://supabase.com/dashboard
-- Sélectionner votre projet > **Settings** > **API**
-- Copier le **Project URL** et la clé **anon public**
+### `backend/.env`
 
-**Important** : Après avoir créé/modifié `.env.local`, redémarrer le serveur (`npm run dev`)
-
-Voir [GUIDE_LOCAL_SETUP.md](GUIDE_LOCAL_SETUP.md) pour la configuration complète de l'authentification en local.
-
-#### Backend
-
-Créez un fichier `.env` dans le dossier `backend/` :
+Voir `backend/.env.example`.
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/novlearn
-SECRET_KEY=your-secret-key-here
+APP_ENV=development
+DEBUG=True
+HOST=0.0.0.0
+PORT=8010
+SUPABASE_URL=https://votre-project-ref.supabase.co
+SUPABASE_SERVICE_KEY=votre-service-role-key   # PAS la clé anon
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
-## 📚 Documentation
+### `duel-server/.env`
 
-- [Cahier des charges technique](docs_projet/Cahier%20des%20charges%20Technique.txt)
-- [Fiche de lancement](docs_projet/Fiche%20de%20lancement.txt)
+Voir `duel-server/.env.example`.
 
-## 👥 Équipe
+> Les valeurs Supabase se trouvent dans le dashboard : **Settings → API**.
+> Après modification d'un `.env`, redémarrer le service concerné.
 
-- Balthazar
-- Charles
-- Yoan
-- Timothée
-- Alexandre
+## Base de données
 
-## 📅 Calendrier
+```bash
+npm run db:push     # applique les migrations sur Supabase
+npm run db:start    # instance Supabase locale
+npm run db:stop
+```
 
-- **Février 2026** : MVP testable
-- **Juin 2026** : Livraison finale
+## Tests
 
-## 🚀 Déploiement
+```bash
+npm test              # les trois suites
+npm run test:backend  # pytest
+npm run test:frontend # vitest
+npm run test:duel     # vitest
+npm run test:coverage
+```
 
-Le déploiement est automatisé via GitHub Actions. Chaque push sur `main` déclenche un déploiement automatique sur le VPS.
+Détails et conventions : `README-TESTS.md`.
 
-**Configuration requise :**
-- VPS avec Apache, PostgreSQL, Python 3.11+
-- Secrets GitHub Actions configurés (VPS_HOST, VPS_USERNAME, VPS_SSH_KEY, DATABASE_URL, SECRET_KEY)
-- Nom de domaine `novlearn.fr` pointant vers le VPS
-- SSL configuré avec Certbot
-
-Le workflow déploie automatiquement le frontend (Next.js) et le backend (FastAPI) avec configuration Apache et service systemd.
-
-## 📄 Licence
-
-Projet académique - École Centrale de Lyon
-
+## Structure
 
 ```
-Novlearn
-├─ apache
-│  ├─ novlearn.fr-le-ssl.conf
-│  └─ novlearn.fr.conf
-├─ backend
-│  ├─ main.py
-│  └─ requirements.txt
-├─ clean-cache.sh
-├─ data
-│  └─ analyse_equation_de_degre_2_1_rgyfpt.json
-├─ deploy.sh
-├─ docs_projet
-│  ├─ AJOUTS_MAQUETTE2.md
-│  ├─ Cahier des charges Technique.txt
-│  ├─ Charte graphique.txt
-│  ├─ Fiche de lancement.txt
-│  ├─ Maquette1
-│  │  ├─ index.html
-│  │  ├─ package.json
-│  │  ├─ README.md
-│  │  ├─ src
-│  │  │  ├─ App.tsx
-│  │  │  ├─ assets
-│  │  │  │  └─ e87ed438d673a206ab378f4bc50ae391b5d1f031.png
-│  │  │  ├─ Attributions.md
-│  │  │  ├─ components
-│  │  │  │  ├─ AccountPage.tsx
-│  │  │  │  ├─ ActionButton.tsx
-│  │  │  │  ├─ CoursePage.tsx
-│  │  │  │  ├─ ExponentialExercise.tsx
-│  │  │  │  ├─ figma
-│  │  │  │  │  └─ ImageWithFallback.tsx
-│  │  │  │  ├─ Logo.tsx
-│  │  │  │  ├─ MathExercise.tsx
-│  │  │  │  ├─ ProgressPage.tsx
-│  │  │  │  ├─ SidebarIcon.tsx
-│  │  │  │  ├─ TableVariationExercise.tsx
-│  │  │  │  ├─ ui
-│  │  │  │  │  ├─ accordion.tsx
-│  │  │  │  │  ├─ alert-dialog.tsx
-│  │  │  │  │  ├─ alert.tsx
-│  │  │  │  │  ├─ aspect-ratio.tsx
-│  │  │  │  │  ├─ avatar.tsx
-│  │  │  │  │  ├─ badge.tsx
-│  │  │  │  │  ├─ breadcrumb.tsx
-│  │  │  │  │  ├─ button.tsx
-│  │  │  │  │  ├─ calendar.tsx
-│  │  │  │  │  ├─ card.tsx
-│  │  │  │  │  ├─ carousel.tsx
-│  │  │  │  │  ├─ chart.tsx
-│  │  │  │  │  ├─ checkbox.tsx
-│  │  │  │  │  ├─ collapsible.tsx
-│  │  │  │  │  ├─ command.tsx
-│  │  │  │  │  ├─ context-menu.tsx
-│  │  │  │  │  ├─ dialog.tsx
-│  │  │  │  │  ├─ drawer.tsx
-│  │  │  │  │  ├─ dropdown-menu.tsx
-│  │  │  │  │  ├─ form.tsx
-│  │  │  │  │  ├─ hover-card.tsx
-│  │  │  │  │  ├─ input-otp.tsx
-│  │  │  │  │  ├─ input.tsx
-│  │  │  │  │  ├─ label.tsx
-│  │  │  │  │  ├─ menubar.tsx
-│  │  │  │  │  ├─ navigation-menu.tsx
-│  │  │  │  │  ├─ pagination.tsx
-│  │  │  │  │  ├─ popover.tsx
-│  │  │  │  │  ├─ progress.tsx
-│  │  │  │  │  ├─ radio-group.tsx
-│  │  │  │  │  ├─ resizable.tsx
-│  │  │  │  │  ├─ scroll-area.tsx
-│  │  │  │  │  ├─ select.tsx
-│  │  │  │  │  ├─ separator.tsx
-│  │  │  │  │  ├─ sheet.tsx
-│  │  │  │  │  ├─ sidebar.tsx
-│  │  │  │  │  ├─ skeleton.tsx
-│  │  │  │  │  ├─ slider.tsx
-│  │  │  │  │  ├─ sonner.tsx
-│  │  │  │  │  ├─ switch.tsx
-│  │  │  │  │  ├─ table.tsx
-│  │  │  │  │  ├─ tabs.tsx
-│  │  │  │  │  ├─ textarea.tsx
-│  │  │  │  │  ├─ toggle-group.tsx
-│  │  │  │  │  ├─ toggle.tsx
-│  │  │  │  │  ├─ tooltip.tsx
-│  │  │  │  │  ├─ use-mobile.ts
-│  │  │  │  │  └─ utils.ts
-│  │  │  │  └─ ValidationResult.tsx
-│  │  │  ├─ DESIGN_DOCUMENTATION.md
-│  │  │  ├─ guidelines
-│  │  │  │  └─ Guidelines.md
-│  │  │  ├─ index.css
-│  │  │  ├─ main.tsx
-│  │  │  └─ styles
-│  │  │     └─ globals.css
-│  │  └─ vite.config.ts
-│  └─ Maquette2
-│     ├─ index.html
-│     ├─ package.json
-│     ├─ README.md
-│     ├─ src
-│     │  ├─ App.tsx
-│     │  ├─ assets
-│     │  │  └─ e87ed438d673a206ab378f4bc50ae391b5d1f031.png
-│     │  ├─ Attributions.md
-│     │  ├─ components
-│     │  │  ├─ AccountPage.tsx
-│     │  │  ├─ ActionButton.tsx
-│     │  │  ├─ ClassesPage.tsx
-│     │  │  ├─ CoursePage.tsx
-│     │  │  ├─ DuelPage.tsx
-│     │  │  ├─ ExponentialExercise.tsx
-│     │  │  ├─ figma
-│     │  │  │  └─ ImageWithFallback.tsx
-│     │  │  ├─ Logo.tsx
-│     │  │  ├─ MathExercise.tsx
-│     │  │  ├─ ProgressPage.tsx
-│     │  │  ├─ SidebarIcon.tsx
-│     │  │  ├─ SignupPage.tsx
-│     │  │  ├─ TableVariationExercise.tsx
-│     │  │  ├─ TrainingPage.tsx
-│     │  │  ├─ ui
-│     │  │  │  ├─ accordion.tsx
-│     │  │  │  ├─ alert-dialog.tsx
-│     │  │  │  ├─ alert.tsx
-│     │  │  │  ├─ aspect-ratio.tsx
-│     │  │  │  ├─ avatar.tsx
-│     │  │  │  ├─ badge.tsx
-│     │  │  │  ├─ breadcrumb.tsx
-│     │  │  │  ├─ button.tsx
-│     │  │  │  ├─ calendar.tsx
-│     │  │  │  ├─ card.tsx
-│     │  │  │  ├─ carousel.tsx
-│     │  │  │  ├─ chart.tsx
-│     │  │  │  ├─ checkbox.tsx
-│     │  │  │  ├─ collapsible.tsx
-│     │  │  │  ├─ command.tsx
-│     │  │  │  ├─ context-menu.tsx
-│     │  │  │  ├─ dialog.tsx
-│     │  │  │  ├─ drawer.tsx
-│     │  │  │  ├─ dropdown-menu.tsx
-│     │  │  │  ├─ form.tsx
-│     │  │  │  ├─ hover-card.tsx
-│     │  │  │  ├─ input-otp.tsx
-│     │  │  │  ├─ input.tsx
-│     │  │  │  ├─ label.tsx
-│     │  │  │  ├─ menubar.tsx
-│     │  │  │  ├─ navigation-menu.tsx
-│     │  │  │  ├─ pagination.tsx
-│     │  │  │  ├─ popover.tsx
-│     │  │  │  ├─ progress.tsx
-│     │  │  │  ├─ radio-group.tsx
-│     │  │  │  ├─ resizable.tsx
-│     │  │  │  ├─ scroll-area.tsx
-│     │  │  │  ├─ select.tsx
-│     │  │  │  ├─ separator.tsx
-│     │  │  │  ├─ sheet.tsx
-│     │  │  │  ├─ sidebar.tsx
-│     │  │  │  ├─ skeleton.tsx
-│     │  │  │  ├─ slider.tsx
-│     │  │  │  ├─ sonner.tsx
-│     │  │  │  ├─ switch.tsx
-│     │  │  │  ├─ table.tsx
-│     │  │  │  ├─ tabs.tsx
-│     │  │  │  ├─ textarea.tsx
-│     │  │  │  ├─ toggle-group.tsx
-│     │  │  │  ├─ toggle.tsx
-│     │  │  │  ├─ tooltip.tsx
-│     │  │  │  ├─ use-mobile.ts
-│     │  │  │  └─ utils.ts
-│     │  │  └─ ValidationResult.tsx
-│     │  ├─ DESIGN_DOCUMENTATION.md
-│     │  ├─ guidelines
-│     │  │  └─ Guidelines.md
-│     │  ├─ index.css
-│     │  ├─ main.tsx
-│     │  └─ styles
-│     │     └─ globals.css
-│     └─ vite.config.ts
-├─ frontend
-│  ├─ app
-│  │  ├─ api
-│  │  │  └─ exercises
-│  │  │     └─ route.ts
-│  │  ├─ auth
-│  │  │  ├─ callback
-│  │  │  │  └─ page.tsx
-│  │  │  ├─ login
-│  │  │  │  └─ page.tsx
-│  │  │  ├─ signup
-│  │  │  │  └─ page.tsx
-│  │  │  └─ verify-email
-│  │  │     └─ page.tsx
-│  │  ├─ classes
-│  │  │  └─ page.tsx
-│  │  ├─ components
-│  │  │  ├─ AccountPage.tsx
-│  │  │  ├─ ActionButton.tsx
-│  │  │  ├─ ClassesPage.tsx
-│  │  │  ├─ CoursePage.tsx
-│  │  │  ├─ DuelPage.tsx
-│  │  │  ├─ Exercise
-│  │  │  │  ├─ ExerciseLoader.tsx
-│  │  │  │  ├─ ExerciseRenderer.tsx
-│  │  │  │  └─ index.ts
-│  │  │  ├─ ExercisePage.tsx
-│  │  │  ├─ ExponentialExercise.tsx
-│  │  │  ├─ Layout.tsx
-│  │  │  ├─ LoginForm.tsx
-│  │  │  ├─ Logo.tsx
-│  │  │  ├─ MathExercise.tsx
-│  │  │  ├─ ProgressPage.tsx
-│  │  │  ├─ SidebarIcon.tsx
-│  │  │  ├─ SignupForm.tsx
-│  │  │  ├─ TableVariationExercise.tsx
-│  │  │  ├─ TrainingPage.tsx
-│  │  │  ├─ ui
-│  │  │  │  └─ MathText.tsx
-│  │  │  └─ ValidationResult.tsx
-│  │  ├─ compte
-│  │  │  └─ page.tsx
-│  │  ├─ conditions-utilisation
-│  │  │  └─ page.tsx
-│  │  ├─ contexts
-│  │  │  └─ AuthContext.tsx
-│  │  ├─ cours
-│  │  │  └─ page.tsx
-│  │  ├─ currentexercise
-│  │  │  └─ page.tsx
-│  │  ├─ duel
-│  │  │  └─ page.tsx
-│  │  ├─ entrainement
-│  │  │  └─ page.tsx
-│  │  ├─ exercices
-│  │  │  └─ page.tsx
-│  │  ├─ globals.css
-│  │  ├─ hooks
-│  │  │  ├─ useVariable.ts
-│  │  │  └─ useVariables.ts
-│  │  ├─ layout.tsx
-│  │  ├─ lib
-│  │  │  └─ supabase.ts
-│  │  ├─ page.tsx
-│  │  ├─ parametres
-│  │  │  └─ page.tsx
-│  │  ├─ politique-confidentialite
-│  │  │  └─ page.tsx
-│  │  ├─ progression
-│  │  │  └─ page.tsx
-│  │  ├─ renderers
-│  │  │  ├─ EquationRenderer.tsx
-│  │  │  ├─ FunctionRenderer.tsx
-│  │  │  ├─ GraphRenderer.tsx
-│  │  │  ├─ index.ts
-│  │  │  ├─ MCQRenderer.tsx
-│  │  │  ├─ QuestionRenderer.tsx
-│  │  │  ├─ SignTableRenderer.tsx
-│  │  │  ├─ TextRenderer.tsx
-│  │  │  └─ VariationTableRenderer.tsx
-│  │  ├─ types
-│  │  │  └─ exercise.ts
-│  │  └─ utils
-│  │     ├─ MathParser.ts
-│  │     └─ variableGenerator.ts
-│  ├─ DEVELOPPEMENT_FUTUR.md
-│  ├─ middleware.ts
-│  ├─ next-env.d.ts
-│  ├─ next.config.js
-│  ├─ package-lock.json
-│  ├─ package.json
-│  ├─ postcss.config.js
-│  ├─ public
-│  │  ├─ data
-│  │  │  └─ analyse_equation_de_degre_2_1_rgyfpt.json
-│  │  ├─ favicon.ico
-│  │  ├─ logo.png
-│  │  └─ logo_seul.png
-│  ├─ tailwind.config.js
-│  └─ tsconfig.json
-├─ package-lock.json
-├─ README.md
-├─ SETUP_AUTH.md
-├─ start-dev.bat
-├─ start-dev.sh
-├─ supabase
-│  └─ migrations
-│     └─ 001_initial_schema.sql
-└─ systemd
-   ├─ novlearn-backend.service
-   └─ novlearn-frontend.service
-
+novlearn/
+├─ frontend/        Next.js — app/ (routes, composants, renderers, utils)
+├─ backend/         FastAPI — main.py, recommandation.py, ds.py, settings/, tests/
+├─ duel-server/     Colyseus — rooms/, schema/
+├─ supabase/        migrations SQL
+├─ apache/          vhosts de production
+├─ systemd/         unités des trois services
+├─ docs/            audit, notes de mise en place, rapport cyber
+└─ docs_projet/     spécifications d'origine
 ```
+
+## Déploiement
+
+Automatisé par GitHub Actions (`.github/workflows/deploy.yml`) : chaque push sur
+`main` déploie sur le VPS (Apache en reverse proxy + trois services systemd).
+
+Secrets GitHub Actions consommés par le workflow :
+
+| Domaine | Secrets |
+|---|---|
+| VPS | `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY` |
+| Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| Notifications | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
+| Analytics | `NEXT_PUBLIC_GA_ID` |
+
+Les quatre secrets Supabase doivent être définis dans les environnements GitHub
+`staging` et `production`. Les références non sensibles des deux projets sont
+définies comme variables GitHub `SUPABASE_STAGING_PROJECT_REF` et
+`SUPABASE_PRODUCTION_PROJECT_REF` ; le workflow les compare à l'URL du projet
+avant tout transfert vers le VPS. Les secrets VPS, SMTP et VAPID restent des
+secrets communs au dépôt.
+
+## Documentation
+
+| Document | Contenu |
+|---|---|
+| `ARCHITECTURE.md` | Référence technique complète |
+| `README-TESTS.md` | Guide des tests |
+| `docs/AUDIT_REPRISE.md` | Audit de reprise : dette, sécurité, priorités |
+| `docs/SETUP_AUTH.md` | Configuration de l'authentification |
+| `docs/NOTIFICATIONS_SETUP.md` | Notifications push |
+| `docs/OPTIMISATIONS.md` | Pistes de performance |
+| `docs_projet/` | Cahier des charges, charte graphique, fiche de lancement |
+
+## Équipe
+
+Balthazar · Charles · Yoan · Timothée · Alexandre
+
+## Calendrier
+
+- **Février 2026** — MVP testable
+- **Juin 2026** — Livraison finale
+
+## Licence
+
+Projet académique — École Centrale de Lyon (PE69).
+
+## Synchronisation du catalogue
+
+Pour copier les exercices et la taxonomie de production vers le staging : [guide et commandes](docs/catalog-sync.md).
+
+Pour initialiser les deux projets Supabase et configurer Auth, les secrets et Realtime : [guide des environnements](docs/supabase-environments.md).

@@ -47,8 +47,22 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = path.startsWith("/auth");
   const isCallback = path.startsWith("/auth/callback");
   const isUpdatePassword = path.startsWith("/auth/update-password");
+  // Pages consultables sans compte : mentions legales et support.
+  // Le RGPD impose que la politique de confidentialite et les CGU soient
+  // atteignables sans authentification ; ce sont des pages statiques sans
+  // donnee utilisateur.
+  const publicPages = [
+    "/accueil",
+    "/cgu",
+    "/politique-confidentialite",
+    "/sitemap",
+    "/support",
+  ];
+
   const isPublicRoute =
-    isAuthRoute || path === "/accueil" || path.startsWith("/invite/");
+    isAuthRoute ||
+    publicPages.some((p) => path === p || path.startsWith(`${p}/`)) ||
+    path.startsWith("/invite/");
 
   // B. Si l'utilisateur est connecté (non anonyme) et essaie d'aller sur Login/Signup, on le renvoie à l'accueil
   // Les invités (anonymes) peuvent accéder aux pages auth pour se connecter ou s'inscrire

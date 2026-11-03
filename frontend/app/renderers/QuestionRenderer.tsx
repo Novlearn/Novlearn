@@ -15,7 +15,7 @@ import MathText from "../components/ui/MathText";
 import { useAudioFeedback } from "../hooks/useAudioFeedback";
 import { QuestionContent, VariableValues } from "../types/exercise";
 import { checkAnswer } from "../utils/math/evaluation";
-import { simplifyLatexExpression } from "../utils/math/simplication";
+import { simplifyLatexExpression } from "../utils/math/simplification";
 
 interface QuestionRendererProps {
   content: QuestionContent;
