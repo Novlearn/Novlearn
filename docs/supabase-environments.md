@@ -113,10 +113,15 @@ Dans **GitHub > Settings > Environments**, créer `staging` et `production`. Le 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé `anon` du projet pour le frontend |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé `service_role` utilisée par les routes serveur Next.js |
 | `SUPABASE_SERVICE_KEY` | La même clé `service_role`, pour FastAPI et Colyseus |
-| `DATABASE_URL` | Connexion PostgreSQL du projet, si utilisée |
-| `ADMIN_API_SECRET` | Secret administrateur distinct pour chaque environnement |
 
-Les secrets d'environnement remplacent ceux de même nom au niveau du dépôt. **Un secret absent peut retomber sur le secret du dépôt** : renseigner toutes les valeurs Supabase de staging avant un push de déploiement. Les autres secrets VPS/SMTP peuvent rester partagés si c'est voulu. Ne pas changer les clés du projet production pour créer staging.
+Définir aussi ces variables non sensibles dans **Settings → Secrets and variables → Actions → Variables** au niveau du dépôt :
+
+| Variable GitHub | Valeur |
+| --- | --- |
+| `SUPABASE_STAGING_PROJECT_REF` | Référence du projet staging, tirée de son URL Supabase |
+| `SUPABASE_PRODUCTION_PROJECT_REF` | Référence du projet production, tirée de son URL Supabase |
+
+Le contrôle initial du workflow exige les quatre secrets Supabase, ces deux références distinctes et les trois secrets SSH. Il bloque avant tout transfert si l'URL ne correspond pas à l'environnement sélectionné. Les secrets SMTP, VAPID, VPS et Analytics restent communs au dépôt. Ne pas changer les clés du projet production pour créer staging.
 
 En local, renseigner les valeurs staging dans `frontend/.env.local`, `backend/.env` et `duel-server/.env`. N'exposer aucune clé `service_role` dans une variable `NEXT_PUBLIC_*`.
 
