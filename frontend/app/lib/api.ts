@@ -342,23 +342,7 @@ export const dsApi = {
     });
   },
 
-  async submitDSAnswer(
-    dsId: string,
-    exerciseId: string,
-    competenceIds: string[],
-    isCorrect: boolean,
-    difficulty: string,
-    engineSessionId?:string,
-  ): Promise<{ message: string }> {
-    return apiRequest(`/api/ds/${encodeURIComponent(dsId)}/submit`, {
-      method: "POST",
-      body: JSON.stringify({
-        exercise_id: exerciseId,
-        competence_ids: competenceIds,
-        is_correct: isCorrect,
-        difficulty,
-        ...(engineSessionId?{engine_session_id:engineSessionId}:{}),
-      }),
-    });
+  async submitDSAnswer(dsId: string, engineSessionId: string): Promise<{message:string}> {
+    return apiRequest(`/api/ds/${encodeURIComponent(dsId)}/submit`,{method:"POST",body:JSON.stringify({engine_session_id:engineSessionId})});
   },
 };

@@ -28,9 +28,8 @@ async def test_ds_uses_the_server_receipt_instead_of_browser_points():
     client.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = SimpleNamespace(data={'id': 'ds'})
     client.rpc.return_value.execute.return_value = SimpleNamespace(data={'message': 'Réponse enregistrée'})
     body = SubmitDSAnswerRequest(exercise_id='999', competence_ids=['forged'], is_correct=True, difficulty='Difficile', engine_session_id='10000000-0000-4000-8000-000000000001')
-    with patch('routers.ds.get_supabase_client', return_value=client), patch('routers.ds.soumettre_reponse_ds') as legacy:
+    with patch('routers.ds.get_supabase_client', return_value=client):
         await ds_submit('ds', body, {'user_id': 'owner'})
-    legacy.assert_not_called()
     client.rpc.assert_called_once_with('engine_apply_ds_result', {'p_id': str(body.engine_session_id), 'p_owner': 'owner', 'p_ds': 'ds'})
 
 def test_taxonomy_accepts_the_existing_admin_alias_column():
@@ -51,9 +50,7 @@ async def test_engine_ds_refuses_forged_exercise_id_without_receipt(monkeypatch)
     monkeypatch.setenv('NOVLEARN_ENGINE_ENABLED', 'true')
     client = MagicMock()
     client.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = SimpleNamespace(data={'id': 'ds'})
-    body = SubmitDSAnswerRequest(exercise_id='999999', competence_ids=['forged'], is_correct=True, difficulty='hard')
-    with patch('routers.ds.get_supabase_client', return_value=client), patch('routers.ds.soumettre_reponse_ds') as legacy:
-        with pytest.raises(HTTPException) as error:
-            await ds_submit('ds', body, {'user_id': 'owner'})
-    assert error.value.status_code == 400
-    legacy.assert_not_called()
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        SubmitDSAnswerRequest(exercise_id='999999', competence_ids=['forged'], is_correct=True, difficulty='hard')
+    client.rpc.assert_not_called()

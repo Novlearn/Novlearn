@@ -42,7 +42,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
   const [correctionError,setCorrectionError]=useState<string|null>(null);
   const [status, setStatus] = useState<"idle" | "correct" | "incorrect">(initialResult?.state==="correct"?"correct":initialResult?.state==="incorrect"?"incorrect":"idle");
   const [showExplanation, setShowExplanation] = useState(false);
-  const explanation=gradeAnswer?serverResult?.reveal?.explanation:content.explanation;
+  const explanation=serverResult?.reveal?.explanation;
 
   const isMultipleChoice = content?.multipleChoice ?? false;
   const optionKey=optionIds?.join(",");
@@ -57,7 +57,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
     const answer=initialResult?.answer;
     return new Set(answer?.format==="selection"?shuffledOptions.flatMap((o,i)=>o.optionId&&answer.optionIds.includes(o.optionId)?[i]:[]):[]);
   });
-  const correctOption=(option:typeof shuffledOptions[number])=>gradeAnswer?!!option.optionId&&!!serverResult?.reveal?.optionIds?.includes(option.optionId):option.correct;
+  const correctOption=(option:typeof shuffledOptions[number])=>!!option.optionId&&!!serverResult?.reveal?.optionIds?.includes(option.optionId);
 
   const handleSelect = (index: number) => {
     if (isFinished || pending) return;
@@ -92,31 +92,13 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
       return;
     }
 
-    // Correct = toutes les bonnes réponses sélectionnées ET aucune mauvaise
-    const correctIndices = new Set(
-      shuffledOptions
-        .map((opt, idx) => (opt.correct ? idx : -1))
-        .filter((idx) => idx !== -1)
-    );
-
-    const allCorrectSelected = [...correctIndices].every((idx) =>
-      selectedIndices.has(idx)
-    );
-    const noIncorrectSelected = [...selectedIndices].every(
-      (idx) => shuffledOptions[idx].correct
-    );
-    const isCorrect = allCorrectSelected && noIncorrectSelected;
-
-    setStatus(isCorrect ? "correct" : "incorrect");
-    setIsFinished(true);
-    setShowExplanation(true); // Afficher l'explication automatiquement à la fin
-    onSubmit?.([...selectedIndices][0], isCorrect);
+    setCorrectionError("La correction est indisponible. Réessayez.");
   };
 
   // Récupérer les bonnes réponses pour l'affichage de la correction
   const correctOptionTexts = useMemo(() => {
-    return shuffledOptions.filter((opt) => gradeAnswer ? !!opt.optionId && !!serverResult?.reveal?.optionIds?.includes(opt.optionId) : opt.correct).map((opt) => opt.text);
-  }, [shuffledOptions,gradeAnswer,serverResult]);
+    return shuffledOptions.filter((opt) => !!opt.optionId && !!serverResult?.reveal?.optionIds?.includes(opt.optionId)).map((opt) => opt.text);
+  }, [shuffledOptions,serverResult]);
 
   // Si pas de contenu valide
   if (!content || !shuffledOptions.length) {

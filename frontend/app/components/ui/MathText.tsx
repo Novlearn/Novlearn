@@ -2,9 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import { VariableValues } from "../../types/exercise";
-// Imports depuis vos nouveaux utilitaires math
-import { toLatex } from "../../utils/math/evaluation";
-import { parseMathText, substituteVariables } from "../../utils/math/parsing";
+import { parseMathText } from "../../utils/mathText";
 import { getKaTeX } from "./katexUtils";
 
 interface MathTextProps {
@@ -22,15 +20,13 @@ interface MathTextProps {
 
 const MathText: React.FC<MathTextProps> = ({
   content,
-  variables = {},
   className = "",
   displayMode = false,
-  autoLatex = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Substitue les variables (utilise maintenant formatting.ts via parsing.ts)
-  const substitutedContent = substituteVariables(content, variables);
+  // Engine has already prepared every mathematical expression.
+  const substitutedContent = content;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -49,9 +45,7 @@ const MathText: React.FC<MathTextProps> = ({
 
       // Si displayMode forcé et pas de délimiteurs, traiter tout comme du math
       if (displayMode && !content.includes("$")) {
-        const latex = autoLatex
-          ? toLatex(substitutedContent)
-          : substitutedContent;
+        const latex = substitutedContent;
         try {
           container.innerHTML = "";
           katex.render(latex, container, {
@@ -82,7 +76,7 @@ const MathText: React.FC<MathTextProps> = ({
               ? "katex-display-block"
               : "katex-inline";
 
-          const latex = autoLatex ? toLatex(segment.content) : segment.content;
+          const latex = segment.content;
           try {
             katex.render(latex, mathSpan, {
               displayMode: segment.type === "display-math",
@@ -97,7 +91,7 @@ const MathText: React.FC<MathTextProps> = ({
     };
 
     renderMath();
-  }, [substitutedContent, displayMode, autoLatex, content]);
+  }, [substitutedContent, displayMode, content]);
 
   return (
     <div

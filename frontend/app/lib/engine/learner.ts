@@ -180,7 +180,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 for (const old of expired)
                     await transition(admin, old, "abandoned");
                 const previous = checked(await admin.from("engine_exercise_sessions").select("*").eq("owner_id", user.id).eq("exercise_id", parent.id).eq("status", "active").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10)) as Saved[];
-                const existing = previous.find(s => s.metadata.mode === mode && s.metadata.dsId === (body.dsId ?? null));
+                const existing = previous.find(s => s.metadata.engineArtifactSha256 === ENGINE_ARTIFACT_SHA256 && s.metadata.mode === mode && s.metadata.dsId === (body.dsId ?? null));
                 if (existing)
                     return { kind: "engine", session: view(existing) };
                 const capacity=await admin.from("engine_exercise_sessions").select("id",{count:"exact",head:true}).eq("owner_id",user.id).eq("status","active").gt("expires_at",new Date().toISOString());
@@ -194,7 +194,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 };
                 if (!generated?.ok || generated.value?.instanceId !== id || generated.value.schemaVersion!==5 || generated.value.engineVersion!=="0.1.0" || generated.value.definition.id!==version.definition.id || generated.value.definition.revision!==version.definition.revision || generated.value.generation.version!=="mulberry32-rejection-v1")
                     throw new EngineError(422, "Cet exercice ne peut pas être généré.");
-                const projected = await runEngine("projectPublicInstance", { official: json(generated.value) }, request.signal);
+                const projected = await runEngine("projectPublicInstance", { official: json(generated.value), sampleGraphs: true }, request.signal);
                 if (!safeProjection(projected))
                     throw new EngineError(422, "Rendu de cet exercice indisponible.");
                 const metadata = { engineArtifactSha256: ENGINE_ARTIFACT_SHA256, title: parent.title, app_title: parent.app_title, chapter: parent.chapter, difficulty: parent.difficulty, competences: parent.competences ?? [], mode, dsId: body.dsId ?? null, preview, guest: !!user.is_anonymous, countPoints: !user.is_anonymous && body.countPoints === true, trackAbandon: body.trackAbandon === true };
@@ -204,6 +204,8 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
             if (!uuid(body.sessionId))
                 throw new EngineError(400, "Instance invalide.");
             const s = await get(admin, user.id, body.sessionId);
+            if(body.action === "resume" && s.metadata.engineArtifactSha256 !== ENGINE_ARTIFACT_SHA256)
+                throw new EngineError(409,"Cette instance utilise une ancienne version du moteur.");
             if (body.action === "resume")
                 return { kind: "engine", session: view(s) };
             if (s.status !== "active")

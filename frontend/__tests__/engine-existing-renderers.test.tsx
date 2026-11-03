@@ -4,7 +4,6 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("../app/components/ui/MathInput", () => ({ MathInput: (p: any) => <input value={p.value} disabled={p.disabled} onChange={e => p.onChange(e.target.value)}/> }));
 vi.mock("../app/components/ui/MathText", () => ({ default: (p: any) => <span>{p.content}</span> }));
 vi.mock("../app/hooks/useAudioFeedback", () => ({ useAudioFeedback: () => ({ playSuccess: vi.fn(), playError: vi.fn() }) }));
-vi.mock("../app/utils/math/evaluation", () => ({ checkAnswer: vi.fn(() => { throw new Error("Browser correction must not run"); }) }));
 import QuestionRenderer from "../app/renderers/QuestionRenderer";
 import MCQRenderer from "../app/renderers/MCQRenderer";
 let tree: ReactTestRenderer;

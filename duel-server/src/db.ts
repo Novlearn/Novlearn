@@ -123,7 +123,7 @@ export async function getRandomExercise(): Promise<{
     .from("exercises")
     .select("id, title, app_title, chapter, difficulty, content, catalog_id, active_version_id")
     // Service role bypasses RLS. Never admit an unpublished canonical draft.
-    .or("catalog_id.is.null,active_version_id.not.is.null")
+    .or("and(catalog_id.not.is.null,active_version_id.not.is.null)")
     // For duels we only want "flash" exercises that do NOT require a calculator.
     // Column names follow the Supabase schema (case‑sensitive).
     .eq("Is_Flash", true)
@@ -144,43 +144,9 @@ export async function getRandomExercise(): Promise<{
         eligibleIds.add(version.id);
     }
   }
-  const engineOnly = process.env.NOVLEARN_ENGINE_ENABLED === "true";
-  const available = data.filter(e => e.catalog_id ? eligibleIds.has(e.active_version_id) : !engineOnly);
+  const available = data.filter(e => e.catalog_id && eligibleIds.has(e.active_version_id));
   if (!available.length) throw new Error("No exercises available");
-  const nonQcm = available.filter((e) => !isQcmExercise(e));
-  const pool = nonQcm.length > 0 ? nonQcm : available;
-  const row = pool[Math.floor(Math.random() * pool.length)] as ExerciseRow;
-  const variables = row.catalog_id ? {} : generateVariables(row.content?.variables ?? []);
+  const row = available[Math.floor(Math.random()*available.length)] as ExerciseRow;
+  const variables = {};
   return { row, variables };
-}
-
-function isQcmExercise(exercise: { title?: string; content?: { elements?: { type: string }[] } }): boolean {
-  if ((exercise.title ?? "").toUpperCase().includes("QCM")) return true;
-  for (const el of exercise.content?.elements ?? []) {
-    if (el.type === "mcq") return true;
-  }
-  return false;
-}
-
-function generateVariables(configs: VariableConfig[]): Record<string, number> {
-  const vars: Record<string, number> = {};
-  for (const v of configs) {
-    if (!v.name) continue;
-    if (v.type === "integer") {
-      vars[v.name] = randInt(v.min ?? 0, v.max ?? 10);
-    } else if (v.type === "decimal") {
-      const raw = Math.random() * ((v.max ?? 1) - (v.min ?? 0)) + (v.min ?? 0);
-      vars[v.name] = roundTo(raw, v.decimals ?? 2);
-    }
-  }
-  return vars;
-}
-
-function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function roundTo(val: number, decimals: number): number {
-  const factor = Math.pow(10, decimals);
-  return Math.round(val * factor) / factor;
 }

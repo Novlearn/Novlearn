@@ -2,8 +2,6 @@
 
 import React, { useEffect, useRef } from "react";
 import { VariableValues } from "../../types/exercise";
-// On pointe vers votre nouveau dossier utils/math créé précédemment
-import { substituteVariables } from "../../utils/math/parsing";
 import { getKaTeX } from "./katexUtils";
 
 interface LatexProps {
@@ -19,12 +17,11 @@ interface LatexProps {
 
 const Latex: React.FC<LatexProps> = ({
   children,
-  variables = {},
   display = false,
   className = "",
 }) => {
   const ref = useRef<HTMLSpanElement>(null);
-  const substituted = substituteVariables(children, variables);
+  const substituted = children;
 
   useEffect(() => {
     const katex = getKaTeX();

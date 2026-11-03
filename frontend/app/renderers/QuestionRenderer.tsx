@@ -9,13 +9,11 @@ import {
   Lightbulb,
   XCircle,
 } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { MathInput } from "../components/ui/MathInput";
 import MathText from "../components/ui/MathText";
 import { useAudioFeedback } from "../hooks/useAudioFeedback";
 import { QuestionContent, VariableValues } from "../types/exercise";
-import { checkAnswer } from "../utils/math/evaluation";
-import { simplifyLatexExpression } from "../utils/math/simplification";
 import type { GradeQuestion, QuestionResult } from "../lib/engine/learnerTypes";
 
 interface QuestionRendererProps {
@@ -52,12 +50,9 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
 
   const [showHint, setShowHint] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
-  const explanation=gradeAnswer?serverResult?.reveal?.explanation:content.explanation;
+  const explanation=serverResult?.reveal?.explanation;
 
-  const simplifiedCorrectAnswer = useMemo(() => {
-    if(gradeAnswer) return serverResult?.reveal?.latex??serverResult?.reveal?.texts?.[0]??"";
-    return simplifyLatexExpression(content.correctAnswer, variables);
-  }, [content.correctAnswer, variables, gradeAnswer, serverResult]);
+  const revealedAnswer = serverResult?.reveal?.latex ?? serverResult?.reveal?.texts?.[0] ?? "";
 
   // Génère le placeholder adapté au format de réponse
   const getPlaceholder = (): string => {
@@ -98,30 +93,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
       })();
     }
 
-    const currentAttempt = attempts + 1;
-    setAttempts(currentAttempt);
-
-    const isCorrect = checkAnswer(
-      value,
-      content.correctAnswer,
-      variables,
-      content.answerFormat,
-    );
-
-    if (isCorrect) {
-      setStatus("correct");
-      setIsFinished(true);
-      setShowExplanation(true);
-      playSuccess();
-      if (onSubmit) onSubmit(value, true);
-    } else {
-      setStatus("incorrect");
-      playError();
-      if (currentAttempt >= maxAttempts) {
-        setIsFinished(true);
-        if (onSubmit) onSubmit(value, false);
-      }
-    }
+    setCorrectionError("La correction est indisponible. Réessayez.");
   };
 
   const formatForDisplay = (latex: string) => {
@@ -256,9 +228,9 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 Réponse attendue :
               </span>
               <span className="font-bold text-xl text-slate-800">
-                {/* On passe simplifiedCorrectAnswer au lieu de content.correctAnswer */}
+                {/* The expected answer is revealed only by the server. */}
                 <MathText
-                  content={formatForDisplay(simplifiedCorrectAnswer)}
+                  content={formatForDisplay(revealedAnswer)}
                   variables={{}} // On vide les variables car elles sont déjà substituées
                   displayMode={false}
                 />

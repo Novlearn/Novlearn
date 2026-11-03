@@ -10,8 +10,6 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { getColyseusClient } from "../../../lib/colyseusClient";
 import QuestionRenderer from "../../../renderers/QuestionRenderer";
 import { Exercise, TextContent, VariableValues } from "../../../types/exercise";
-import { evaluate } from "../../../utils/math/evaluation";
-import { substituteVariables } from "../../../utils/math/parsing";
 import type { PublicInstance } from "novlearn-exercise-engine";
 import type { GradeQuestion, QuestionResult } from "../../../lib/engine/learnerTypes";
 import { sessionExercise } from "../../../lib/engine/exerciseView";
@@ -32,33 +30,6 @@ interface ExerciseMsg {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function buildExercise(raw: ExerciseMsg["exercise"]): Exercise {
-  return {
-    id: raw.id,
-    title: raw.title,
-    // Always prefer public app_title when available
-    app_title: raw.app_title || raw.title,
-    chapter: raw.chapter,
-    difficulty: raw.difficulty as Exercise["difficulty"],
-    competences: [],
-    variables: (raw.content?.variables ?? []) as Exercise["variables"],
-    elements: (raw.content?.elements ?? []) as Exercise["elements"],
-  };
-}
-
-function computeCorrectAnswer(expr: string, vars: VariableValues): string {
-  if (!expr.trim()) return expr;
-  try {
-    const numVars: Record<string, number> = {};
-    Object.entries(vars).forEach(([k, v]) => {
-      numVars[k] = typeof v === "number" ? v : parseFloat(String(v));
-    });
-    const computed = evaluate(expr, numVars);
-    if (computed !== undefined && !Number.isNaN(computed)) return String(computed);
-  } catch { /* keep raw */ }
-  return expr.trim();
-}
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000);
@@ -97,7 +68,7 @@ export default function ActiveDuelPage() {
   const [correctionSec, setCorrectionSec] = useState(5);
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
-  const [variables, setVariables] = useState<VariableValues>({});
+  const [variables] = useState<VariableValues>({});
   const [correction, setCorrection] = useState<string | null>(null);
   const exerciseCountRef = useRef(0);
   const submittingRef = useRef(false);
@@ -172,15 +143,13 @@ export default function ActiveDuelPage() {
           setCorrection(null);
           for(const resolve of answerRequests.current.values()) resolve({state:"error",attempts:0,finished:false});
           answerRequests.current.clear();engineInstanceRef.current=msg.instance??null;
-          setExercise(msg.instance?sessionExercise({sessionId:msg.instance.instanceId,exerciseId:String(msg.exercise.id),versionId:"",instance:msg.instance,metadata:{...msg.exercise,competences:[]},questions:{},status:"active",correct:false,expiresAt:""}):buildExercise(msg.exercise));
-          setVariables(msg.variables ?? {});
+          if(!msg.instance){setLoadError("Le duel nécessite une instance Engine.");setExercise(null);return;}
+          setExercise(sessionExercise({sessionId:msg.instance.instanceId,exerciseId:String(msg.exercise.id),versionId:"",instance:msg.instance,metadata:{...msg.exercise,competences:[]},questions:{},status:"active",correct:false,expiresAt:""}));
           setConnected(true);
         };
 
         // New message name used by the rewritten duel-server
         room.onMessage("exercise", handleExercise);
-        // Backwards-compatibility with older room code that still emits "exercise_loaded"
-        room.onMessage("exercise_loaded", handleExercise);
         room.onMessage("answer_result",(msg:{requestId:string;instanceId:string;state:QuestionResult["state"];reveal?:QuestionResult["reveal"]})=>{
           if(msg.instanceId!==engineInstanceRef.current?.instanceId) return;
           const resolve=answerRequests.current.get(msg.requestId);
@@ -223,7 +192,8 @@ export default function ActiveDuelPage() {
         room.onMessage("exercise_timeout", (msg: { correctAnswer: { expression: string; elementId: number } | null }) => {
           console.log("[Duel] exercise_timeout");
           if (msg.correctAnswer?.expression) {
-            setCorrection(msg.correctAnswer.expression);
+            const question=engineInstanceRef.current?.elements.find(e=>e.type==="question");
+            setCorrection(question?.type==="question"&&question.response.format==="latex"?`$${msg.correctAnswer.expression}$`:msg.correctAnswer.expression);
           }
           setGraceRemaining(null);
           graceDeadlineRef.current = null;
@@ -322,30 +292,6 @@ export default function ActiveDuelPage() {
   }, [p1Id, p2Id]);
 
   // ─── Submit ───────────────────────────────────────────────────────────────
-
-  const handleAnswerSubmit = useCallback(
-    (answer: string, isCorrect: boolean) => {
-      const room = roomRef.current;
-      if (!room || !exercise || phase !== "playing") return;
-       // During the 5‑second grace period, only the player who has NOT yet
-       // solved should be allowed to answer.
-      if (graceRemaining && graceRemaining > 0 && firstSolverId && user) {
-        const isFirst = user.id === firstSolverId;
-        if (isFirst) return;
-      }
-      if (isCorrect && submittingRef.current) return;
-      if (isCorrect) submittingRef.current = true;
-
-      const questionEl = exercise.elements.find((el) => el.type === "question");
-      const elementId = questionEl?.id ?? exercise.elements[0]?.id ?? 0;
-
-      let timeSpent = exStartedAt > 0 ? (Date.now() - exStartedAt * 1000) : 0;
-      if (timeSpent < 0 || timeSpent > 600_000) timeSpent = 0;
-
-      room.send("submitAnswer", { elementId, answer, isCorrect, timeSpent: Math.floor(timeSpent) });
-    },
-    [exercise, phase, exStartedAt, graceRemaining, firstSolverId, user],
-  );
 
   // ─── Derived ──────────────────────────────────────────────────────────────
 
@@ -506,7 +452,7 @@ export default function ActiveDuelPage() {
                   <p className="text-sm font-semibold text-amber-300 mb-1">Correction (exercice précédent)</p>
                   <p className="text-white">
                     <span className="text-amber-200/90">Bonne réponse : </span>
-                    <MathText content={substituteVariables(correction, variables)} variables={{}} autoLatex={true} />
+                    <MathText content={correction} variables={{}} autoLatex={true} />
                   </p>
                 </div>
               )}
@@ -557,14 +503,12 @@ export default function ActiveDuelPage() {
                     }
                     if (element.type === "question") {
                       const q = element.content as any;
-                      const answerExpr = (q.answer ?? q.correctAnswer ?? "").trim();
-                      const correctAnswerStr = engineInstanceRef.current?"":computeCorrectAnswer(answerExpr, variables);
                       const rawFormat = q.answerFormat ?? q.answerType ?? "number";
                       const answerFormat = rawFormat === "numeric" ? "number" : rawFormat;
 
                       return (
                         <QuestionRenderer
-                          gradeAnswer={engineInstanceRef.current?async(answer)=>{
+                          gradeAnswer={async(answer)=>{
                             const instance=engineInstanceRef.current!;
                             const question=instance.elements.find(e=>e.type==="question")!;
                             const requestId=crypto.randomUUID();
@@ -573,11 +517,10 @@ export default function ActiveDuelPage() {
                               answerRequests.current.set(requestId,result=>{clearTimeout(timer);resolve(result);});
                               roomRef.current?.send("submitAnswer",{requestId,instanceId:instance.instanceId,questionId:question.id,rawAnswer:answer});
                             });
-                          }:undefined}
+                          }}
                           key={`${exercise.id}-${element.id}`}
-                          content={{ ...q, correctAnswer: correctAnswerStr, answerFormat }}
+                          content={{ ...q, correctAnswer: "", answerFormat }}
                           variables={variables}
-                          onSubmit={engineInstanceRef.current?undefined:handleAnswerSubmit}
                           maxAttempts={999}
                           allowHint={false}
                         />

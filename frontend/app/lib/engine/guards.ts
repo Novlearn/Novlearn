@@ -18,7 +18,12 @@ export function safeProjection(value: unknown): value is PublicInstance {
             pending.push(...Object.values(item));
         }
     }
-    return value.elements.every(e => object(e) && typeof e.id === "string" && supported.has(String(e.type)));
+    return value.elements.every(e => {
+        if(!object(e)||typeof e.id!=="string"||!supported.has(String(e.type)))return false;
+        if(e.type!=="function-graph")return true;
+        const plot=e.plot;
+        return object(plot)&&plot.version==="cortex-samples-v1"&&typeof plot.xMin==="number"&&Number.isFinite(plot.xMin)&&typeof plot.xMax==="number"&&Number.isFinite(plot.xMax)&&plot.xMin<plot.xMax&&Array.isArray(e.functions)&&Array.isArray(plot.values)&&plot.values.length===e.functions.length&&plot.values.every(values=>Array.isArray(values)&&values.length===513&&values.every(v=>v===null||typeof v==="number"&&Number.isFinite(v)));
+    });
 }
 const registry = globalThis as typeof globalThis & {
     engineJobs?: Set<string>;

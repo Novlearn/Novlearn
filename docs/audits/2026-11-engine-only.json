@@ -1,0 +1,1508 @@
+{
+  "date": "2026-11-03",
+  "projectRef": "tksvbkvfusrnxulpahky",
+  "engineVersion": "0.1.8",
+  "archiveSha256": "82e499726db2da454627903ed65802eaa2ab3e7185f7f6cb3c84c1cbdbde3cea",
+  "mathjsRemoved": true,
+  "linux": {
+    "exercises": 111,
+    "cases": 131,
+    "graphPoints": 12825,
+    "officialGenerationAndGradingUnchanged": true,
+    "arithmeticProbe": {
+      "expression": "4/2",
+      "correct": "2",
+      "incorrect": "3",
+      "incomplete": "("
+    },
+    "rows": [
+      {
+        "id": 1,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 23,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 25,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 26,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 27,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 28,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 29,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 30,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 31,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 32,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 33,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 34,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 35,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 36,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 37,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 38,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 39,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 40,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 41,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 42,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 43,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 44,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 45,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 46,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 47,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 48,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 49,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 50,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 51,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 52,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 53,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 54,
+        "cases": [
+          {
+            "seed": 0,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 1,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 123,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 4294967295,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          }
+        ]
+      },
+      {
+        "id": 55,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 56,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 57,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 58,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 59,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 60,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 62,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 63,
+        "cases": [
+          {
+            "seed": 0,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 1,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 123,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 4294967295,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          }
+        ]
+      },
+      {
+        "id": 64,
+        "cases": [
+          {
+            "seed": 0,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 1,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 123,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 4294967295,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          }
+        ]
+      },
+      {
+        "id": 65,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 66,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 70,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 71,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 72,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 75,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 76,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 77,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 78,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 79,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 80,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 81,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 82,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 83,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 84,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 85,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 86,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 87,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 88,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 89,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 90,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 91,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 92,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 93,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 94,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 95,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 96,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 97,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 98,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 99,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 100,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 101,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 103,
+        "cases": [
+          {
+            "seed": 0,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 1,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 123,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 4294967295,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          }
+        ]
+      },
+      {
+        "id": 104,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 105,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 106,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 107,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 109,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 110,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 111,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 112,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 113,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 115,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 116,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 117,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 119,
+        "cases": [
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 0
+          }
+        ]
+      },
+      {
+        "id": 120,
+        "cases": [
+          {
+            "seed": 0,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 1,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 42,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 123,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          },
+          {
+            "seed": 4294967295,
+            "generationUnchanged": true,
+            "gradingDataUnchanged": true,
+            "publicProjection": true,
+            "graphPoints": 513
+          }
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "frontendTests": 113,
+    "backendTests": 175,
+    "duelTests": 61,
+    "adminReceiptTests": 3,
+    "portableEngineRegression": {
+      "sourceVersion": "0.1.7",
+      "tests": 1548,
+      "computedFileRecheck": true
+    },
+    "finalEnginePlotTests": 3,
+    "build": true,
+    "typecheck": true,
+    "productionDeployment": false
+  }
+}

@@ -2,7 +2,6 @@
 Devoirs surveilles : creation, suivi, recommandation et soumission.
 """
 import logging
-import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +10,6 @@ from auth import get_supabase_client, verify_token
 from ds import (
     initialiser_scores_ds,
     recommander_exercice_ds,
-    soumettre_reponse_ds,
 )
 from schemas import CreateDSRequest, SubmitDSAnswerRequest
 
@@ -219,19 +217,4 @@ async def ds_submit(
             return result.data
         except Exception:
             raise HTTPException(status_code=409, detail="Résultat Engine indisponible pour ce DS")
-    # Once Engine is enabled, an invented exercise ID cannot reach legacy scoring.
-    if os.getenv("NOVLEARN_ENGINE_ENABLED") == "true":
-        raise HTTPException(status_code=400, detail="Une correction Engine est requise")
-    # A canonical answer is never graded from the old browser boolean.
-    exercise = supabase.table("exercises").select("catalog_id").eq("id", body.exercise_id).maybe_single().execute()
-    if exercise.data and exercise.data.get("catalog_id"):
-        raise HTTPException(status_code=400, detail="Une correction Engine est requise")
-
-    soumettre_reponse_ds(
-        supabase,
-        ds_id=ds_id,
-        competence_ids=body.competence_ids,
-        is_correct=body.is_correct,
-        difficulty=body.difficulty,
-    )
-    return {"message": "Réponse enregistrée"}
+    raise HTTPException(status_code=400, detail="Une correction Engine est requise")

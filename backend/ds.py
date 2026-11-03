@@ -34,7 +34,6 @@ from settings.recommandation_settings import (
 logger = logging.getLogger(__name__)
 
 # Points gagnés par difficulté (correcte)
-POINTS_PAR_DIFFICULTE = {"easy": 1, "medium": 2, "hard": 3}
 
 
 # ============================================================
@@ -333,66 +332,3 @@ def recommander_exercice_ds(
 # ============================================================
 # SOUMISSION D'UNE RÉPONSE DS
 # ============================================================
-
-def soumettre_reponse_ds(
-    supabase_client: Any,
-    ds_id: str,
-    competence_ids: list[str],
-    is_correct: bool,
-    difficulty: str,
-) -> None:
-    """
-    Met à jour ds_competence_scores et ds.current_streak après une réponse.
-    - Si correct : points += delta (selon difficulté), capped à max_points
-    - Si incorrect : pas de perte de points
-    - Streak : +1 si correct, -1 si incorrect
-    """
-    delta = POINTS_PAR_DIFFICULTE.get(difficulty, 1) if is_correct else 0
-
-    if competence_ids and delta > 0:
-        # Récupérer les scores actuels
-        r = (
-            supabase_client.table("ds_competence_scores")
-            .select("competence_id, points, max_points")
-            .eq("ds_id", ds_id)
-            .in_("competence_id", competence_ids)
-            .execute()
-        )
-        scores_map = {
-            row["competence_id"]: (row["points"], row["max_points"])
-            for row in (r.data or [])
-        }
-
-        for cid in competence_ids:
-            if cid not in scores_map:
-                continue
-            pts, mx = scores_map[cid]
-            new_pts = min(pts + delta, mx)
-            supabase_client.table("ds_competence_scores").update({
-                "points": new_pts,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("ds_id", ds_id).eq("competence_id", cid).execute()
-
-    # Mise à jour du streak DS
-    r_ds = (
-        supabase_client.table("ds")
-        .select("current_streak")
-        .eq("id", ds_id)
-        .maybe_single()
-        .execute()
-    )
-    current = (r_ds.data or {}).get("current_streak", 0)
-    new_streak = current + 1 if is_correct else current - 1
-    # Bornes cohérentes avec les seuils de recommandation
-    new_streak = max(-10, min(new_streak, 10))
-    supabase_client.table("ds").update({"current_streak": new_streak}).eq("id", ds_id).execute()
-
-    logger.info(
-        "[DS] Soumission ds_id=%s correct=%s difficulty=%s delta=%d streak:%d→%d",
-        ds_id,
-        is_correct,
-        difficulty,
-        delta,
-        current,
-        new_streak,
-    )

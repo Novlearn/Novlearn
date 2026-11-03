@@ -282,19 +282,17 @@ describe("dsApi", () => {
 
   it("submitDSAnswer — POST /api/ds/:id/submit avec les bons champs", async () => {
     setupFetch({ message: "Réponse enregistrée" });
-    await dsApi.submitDSAnswer("ds-1", "42", ["comp-1"], true, "easy");
+    await dsApi.submitDSAnswer("ds-1", "receipt");
     const req = lastFetchCall();
     expect(req.url).toContain("/api/ds/ds-1/submit");
     expect(req.method).toBe("POST");
     const body = JSON.parse(req.body!);
-    expect(body.is_correct).toBe(true);
-    expect(body.difficulty).toBe("easy");
-    expect(body.competence_ids).toEqual(["comp-1"]);
+    expect(body).toEqual({engine_session_id:"receipt"});
   });
 
   it("submitDSAnswer — encode l'id dans l'URL", async () => {
     setupFetch({ message: "ok" });
-    await dsApi.submitDSAnswer("ds/special", "1", [], false, "hard");
+    await dsApi.submitDSAnswer("ds/special", "receipt");
     const req = lastFetchCall();
     expect(req.url).toContain("ds%2Fspecial");
   });

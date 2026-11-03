@@ -12,75 +12,17 @@ import { GUEST_EXERCISE_LIMIT, useGuestMode } from "../../hooks/useGuestMode";
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { computeNewScore, difficultyToLevel } from "../../lib/competenceScore";
 import { supabase } from "../../lib/supabase";
-import { useTaxonomyStore } from "../../store/useTaxonomyStore";
 import { Exercise, VariableValues } from "../../types/exercise";
-import { generateVariables } from "../../utils/variableGenerator";
 import { FeedbackModal } from "../ui/FeedbackModal";
 import { HelpModal } from "../ui/HelpModal";
 import ExerciseRenderer from "./ExerciseRenderer";
 import { exerciseOperation, ExerciseRequestError } from "../../lib/engine/learnerClient";
 import { sessionExercise } from "../../lib/engine/exerciseView";
 import type { ExerciseSession, GradeQuestion } from "../../lib/engine/learnerTypes";
-
-async function updateCompetenceScore(
-  userId: string,
-  competenceId: string,
-  difficulty: string,
-  isCorrect: boolean,
-): Promise<void> {
-  try {
-    const competenceConfig = useTaxonomyStore
-      .getState()
-      .getCompetenceById(competenceId);
-    const maxPoints = competenceConfig?.max_points ?? 10;
-
-    const { data: scoreRow, error: selectError } = await supabase
-      .from("user_competence_scores")
-      .select("points, streak")
-      .eq("user_id", userId)
-      .eq("competence_id", competenceId)
-      .maybeSingle();
-
-    if (selectError) throw selectError;
-
-    const currentPoints = scoreRow?.points ?? 0;
-    const currentStreak = scoreRow?.streak ?? 0;
-
-    const newStreak = isCorrect ? currentStreak + 1 : 0;
-    const newPoints = isCorrect
-      ? computeNewScore(
-          currentPoints,
-          maxPoints,
-          difficultyToLevel(difficulty),
-          currentStreak,
-        )
-      : currentPoints;
-
-    const { error: upsertError } = await supabase
-      .from("user_competence_scores")
-      .upsert(
-        {
-          user_id: userId,
-          competence_id: competenceId,
-          points: newPoints,
-          streak: newStreak,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,competence_id" },
-      );
-
-    if (upsertError) throw upsertError;
-  } catch (e) {
-    console.error("[updateCompetenceScore] ❌ ERROR:", e);
-    throw e;
-  }
-}
 
 interface ExerciseLoaderProps {
   exerciseId?: string;
@@ -123,23 +65,16 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
   const { isGuest,user } = useAuth();
   const storageKey=`novlearn-engine:${user?.id??"anonymous"}:${exerciseId}:${dsId??mode??"practice"}`;
   const { getGuestAttemptCount } = useGuestMode();
-  const normalizeCompetenceId = useTaxonomyStore(
-    (state) => state.normalizeCompetenceId,
-  );
-
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [engineSession,setEngineSession]=useState<ExerciseSession|null>(null);
   const engineRef=useRef<ExerciseSession|null>(null);
   const engineLoadRef=useRef<{key:string;request:ReturnType<typeof exerciseOperation>}|null>(null);
-  const [variables, setVariables] = useState<VariableValues>({});
+  const [variables] = useState<VariableValues>({});
   const [loading, setLoading] = useState(true);
   const [isTakingLong, setIsTakingLong] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const [completedElements, setCompletedElements] = useState<Set<number>>(
-    new Set(),
-  );
   const [isExerciseFinished, setIsExerciseFinished] = useState(false);
   const [hasErrors, setHasErrors] = useState(false);
 
@@ -159,20 +94,6 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const slowTimerRef = useRef<NodeJS.Timeout | null>(null);
   const feedbackPendingRef = useRef(false);
-  const exerciseSavedRef = useRef(false); // Empêche les doubles sauvegardes
-  // ID de la ligne exercise_attempts insérée au chargement (mode trackAbandon).
-  // null = pas encore insérée ou déjà traitée.
-  const attemptIdRef = useRef<number | null>(null);
-
-  const totalQuestions = useMemo(() => {
-    if (!exercise) return 0;
-    return exercise.elements.filter(
-      (el) =>
-        ["question", "mcq", "equation"].includes(el.type) &&
-        (el.type !== "equation" || (el.content as any).requireAnswer),
-    ).length;
-  }, [exercise]);
-
   useEffect(() => {
     if (isFeedbackOpen || feedbackPendingRef.current) return;
 
@@ -187,11 +108,8 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
       setError(null);
       setIsTakingLong(false);
       setIsExerciseFinished(false);
-      setCompletedElements(new Set());
       setHasErrors(false);
       setLastSaveStatus("idle");
-      exerciseSavedRef.current = false;
-      attemptIdRef.current = null;
       engineRef.current=null;setEngineSession(null);
 
       slowTimerRef.current = setTimeout(() => {
@@ -199,7 +117,7 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
       }, 3000);
       const applySession=(s:ExerciseSession)=>{
         engineRef.current=s;setEngineSession(s);sessionStorage.setItem(storageKey,s.sessionId);
-        const e=sessionExercise(s);setExercise(e);setVariables({});onLoad?.(e);exerciseSavedRef.current=true;
+        const e=sessionExercise(s);setExercise(e);onLoad?.(e);
         setIsExerciseFinished(s.status==="completed");setHasErrors(s.status==="completed"&&!s.correct);
         setLastSaveStatus(s.status==="completed"?"saved":"idle");
       };
@@ -215,126 +133,29 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
       const openEngine=(id:string)=>loadEngine({action:"open",exerciseId:id,mode:dsId?"ds":mode==="test"?"placement":"practice",dsId:dsId??null,countPoints:shouldCountPoints,trackAbandon});
 
       try {
-        if(process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") {
-          let result:Awaited<ReturnType<typeof exerciseOperation>>|undefined;
-          const previous=sessionStorage.getItem(storageKey);
-          if(previous) {
-            try {result=await loadEngine({action:"resume",sessionId:previous});}
-            catch(e) {
-              if(!(e instanceof ExerciseRequestError)||![404,409,410].includes(e.status)) throw e;
-              sessionStorage.removeItem(storageKey);
-            }
-          }
-          if(!result&&exerciseId) result=await openEngine(exerciseId);
-          if(abortController.signal.aborted) return;
-          if(result?.kind==="engine") {
-            applySession(result.session);
-            return;
+        let result:Awaited<ReturnType<typeof exerciseOperation>>|undefined;
+        const previous=sessionStorage.getItem(storageKey);
+        if(previous) {
+          try {result=await loadEngine({action:"resume",sessionId:previous});}
+          catch(e) {
+            if(!(e instanceof ExerciseRequestError)||![404,409,410].includes(e.status)) throw e;
+            sessionStorage.removeItem(storageKey);
           }
         }
-        let data = null;
-        let dbError = null;
-
-        if (exerciseId) {
-          const result = await supabase
-            .from("exercises")
-            .select("*")
-            .or(AVAILABLE_EXERCISES_FILTER)
-            .is("catalog_id",null)
-            .eq("id", exerciseId)
-            .maybeSingle();
-          data = result.data;
-          dbError = result.error;
-        } else {
-          const { count, error: countError } = await supabase
-            .from("exercises")
-            .select("*", { count: "exact", head: true })
-            .or(AVAILABLE_EXERCISES_FILTER);
-          if (countError) throw countError;
-          const total = count || 0;
-
-          if (total > 0) {
-            const randomOffset = Math.floor(Math.random() * total);
-            const result = await supabase
-              .from("exercises")
-              .select("id,catalog_id")
-              .or(AVAILABLE_EXERCISES_FILTER)
-              .range(randomOffset, randomOffset)
-              .maybeSingle();
-            data = result.data;
-            dbError = result.error;
-          } else {
-            throw new Error("La base d'exercices est vide.");
-          }
+        let id=exerciseId;
+        if(!result&&!id) {
+          const count=await supabase.from("exercises").select("id",{count:"exact",head:true}).or(AVAILABLE_EXERCISES_FILTER);
+          if(count.error)throw count.error;
+          if(!count.count)throw new Error("La base d'exercices est vide.");
+          const offset=Math.floor(Math.random()*count.count);
+          const selected=await supabase.from("exercises").select("id").or(AVAILABLE_EXERCISES_FILTER).order("id").range(offset,offset).maybeSingle();
+          if(selected.error||!selected.data)throw new Error("Exercice indisponible.");
+          id=String(selected.data.id);
         }
-
-        if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
-        if (abortController.signal.aborted) return;
-        if (dbError) throw dbError;
-        if (!data) throw new Error("Exercice introuvable.");
-        if(data.catalog_id) {
-          if(process.env.NEXT_PUBLIC_ENGINE_ENABLED!=="true") throw new Error("Cet exercice nécessite Engine.");
-          const result=await openEngine(String(data.id));
-          if(abortController.signal.aborted) return;
-          if(result.kind!=="engine") throw new Error("Version d’exercice modifiée. Réessayez.");
-          applySession(result.session);return;
-        }
-        if(!exerciseId) {
-          if(process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") throw new Error("Cet exercice doit être migré vers Engine.");
-          const legacy=await supabase.from("exercises").select("*").or(AVAILABLE_EXERCISES_FILTER).is("catalog_id",null).eq("id",data.id).maybeSingle();
-          if(legacy.error||!legacy.data) throw new Error("Exercice indisponible.");data=legacy.data;
-        }
-
-        const content = data.content || {};
-        const effectiveCompetences =
-          competencesFromProps &&
-          Array.isArray(competencesFromProps) &&
-          competencesFromProps.length > 0
-            ? competencesFromProps
-            : competenceIdFromProps
-              ? [competenceIdFromProps]
-              : (data.competences ?? []);
-
-        const fullExercise = {
-          ...content,
-          id: data.id,
-          title: data.title,
-          app_title: data.app_title,
-          chapter: data.chapter,
-          difficulty: data.difficulty,
-          competence_id: effectiveCompetences[0] ?? null,
-          competences: effectiveCompetences,
-          variables: content.variables || [],
-          elements: content.elements || [],
-        } as unknown as Exercise;
-
-        setExercise(fullExercise);
-        setVariables(generateVariables(fullExercise.variables));
-        if (onLoad) onLoad(fullExercise);
-
-        // Enregistre une tentative "abandonnée" dès le chargement.
-        // Elle sera mise à jour si l'utilisateur complète l'exercice,
-        // ou supprimée s'il clique "Passer".
-        if (trackAbandon && !isGuest) {
-          const exerciseIdNum = Number(fullExercise.id);
-          if (!Number.isNaN(exerciseIdNum)) {
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
-            if (currentUser) {
-              const { data: insertedRow } = await supabase
-                .from("exercise_attempts")
-                .insert({
-                  user_id: currentUser.id,
-                  exercise_id: exerciseIdNum,
-                  is_correct: false,
-                  is_abandoned: true,
-                  is_guest: false,
-                })
-                .select("id")
-                .single();
-              attemptIdRef.current = insertedRow?.id ?? null;
-            }
-          }
-        }
+        if(!result&&id)result=await openEngine(id);
+        if(abortController.signal.aborted)return;
+        if(!result||result.kind!=="engine")throw new Error("Cet exercice nécessite Engine.");
+        applySession(result.session);
       } catch (err) {
         if (abortController.signal.aborted) return;
         const msg = err instanceof Error ? err.message : "Erreur de chargement";
@@ -354,114 +175,9 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
   }, [exerciseId, competenceIdFromProps, refreshTrigger,user?.id]);
 
   const handleElementSubmit = useCallback(
-    (elementId: number, answer: unknown, isCorrect: boolean) => {
-      // Callback externe pour le parent (si besoin)
-      if (onElementSubmit) onElementSubmit(elementId, answer, isCorrect);
-
-      // Marquer si erreur
-      if (!isCorrect) setHasErrors(true);
-
-      // Ajouter l'élément à la liste des complétés et vérifier si exercice terminé
-      setCompletedElements((prev) => {
-        const next = new Set(prev).add(elementId);
-        if (exercise && next.size >= totalQuestions && totalQuestions > 0) {
-          setIsExerciseFinished(true);
-        }
-        return next;
-      });
-    },
-    [exercise, totalQuestions, onElementSubmit],
+    (elementId:number, answer:unknown, isCorrect:boolean) => onElementSubmit?.(elementId,answer,isCorrect),
+    [onElementSubmit],
   );
-
-  // Sauvegarde finale de l'exercice en BDD (une seule ligne par exercice)
-  useEffect(() => {
-    if (!isExerciseFinished || exerciseSavedRef.current || !exercise || engineRef.current) return;
-
-    const saveExerciseAttempt = async () => {
-      exerciseSavedRef.current = true;
-      setLastSaveStatus("idle");
-
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-
-      if (!currentUser) {
-        setLastSaveStatus("no_session");
-        return;
-      }
-
-      const exerciseIdNum = Number(exercise.id);
-      if (Number.isNaN(exerciseIdNum)) return;
-
-      // L'exercice est correct uniquement si TOUTES les questions sont justes
-      const isExerciseCorrect = !hasErrors;
-
-      let saveError: unknown = null;
-
-      if (attemptIdRef.current !== null) {
-        // Ligne déjà insérée au chargement (trackAbandon) → on la met à jour
-        const { error } = await supabase
-          .from("exercise_attempts")
-          .update({ is_correct: isExerciseCorrect, is_abandoned: false })
-          .eq("id", attemptIdRef.current);
-        saveError = error;
-        attemptIdRef.current = null;
-      } else {
-        // Pas de ligne pré-insérée → INSERT classique
-        const { error } = await supabase.from("exercise_attempts").insert({
-          user_id: currentUser.id,
-          exercise_id: exerciseIdNum,
-          is_correct: isExerciseCorrect,
-          time_spent: null,
-          is_guest: isGuest,
-        });
-        saveError = error;
-      }
-
-      setLastSaveStatus(saveError ? "error" : "saved");
-
-      // Vérifier si l'invité a atteint sa limite
-      if (isGuest && !saveError) {
-        const count = await getGuestAttemptCount();
-        if (count >= GUEST_EXERCISE_LIMIT) {
-          onGuestLimitReached?.();
-        }
-      }
-
-      // Mise à jour des scores de compétences (une seule fois, à la fin)
-      const effectiveCompetences = competencesFromProps?.length
-        ? competencesFromProps
-        : (exercise.competences ?? []);
-
-      if (effectiveCompetences.length > 0 && shouldCountPoints) {
-        const normalizedIds = effectiveCompetences
-          .map((c) => normalizeCompetenceId(c))
-          .filter((id): id is string => id !== null);
-        await Promise.all(
-          normalizedIds.map((id) =>
-            updateCompetenceScore(
-              currentUser.id,
-              id,
-              exercise.difficulty,
-              isExerciseCorrect,
-            ),
-          ),
-        );
-      }
-    };
-
-    saveExerciseAttempt();
-  }, [
-    isExerciseFinished,
-    exercise,
-    hasErrors,
-    shouldCountPoints,
-    competencesFromProps,
-    normalizeCompetenceId,
-    isGuest,
-    getGuestAttemptCount,
-    onGuestLimitReached,
-  ]);
 
   const proceedToNext = useCallback(() => {
     feedbackPendingRef.current = false; // Libération du verrou
@@ -597,18 +313,6 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
                   engineRef.current=r.session;setEngineSession(r.session);
                   sessionStorage.removeItem(storageKey);
                 }
-                // Supprime la tentative pré-insérée : "Passer" ne compte pas faux
-                if (attemptIdRef.current !== null) {
-                  const idToDelete = attemptIdRef.current;
-                  attemptIdRef.current = null;
-                  // fire & forget — pas d'await pour ne pas bloquer la navigation
-                  supabase
-                    .from("exercise_attempts")
-                    .delete()
-                    .eq("id", idToDelete)
-                    .then(() => {});
-                }
-
                 if (onNextClick) {
                   setIsNextLoading(true);
                   try {

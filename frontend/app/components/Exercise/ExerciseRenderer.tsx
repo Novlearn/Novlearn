@@ -70,7 +70,6 @@ const ElementRenderer: React.FC<ElementRendererProps> = ({
         <EquationRenderer
           content={element.content as EquationContent}
           variables={variables}
-          onSubmit={onChildSubmit} // EquationRenderer attend onSubmit
         />
       );
 

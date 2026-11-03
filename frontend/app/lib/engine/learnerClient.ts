@@ -4,8 +4,6 @@ export class ExerciseRequestError extends Error {
     constructor(readonly status: number, message: string) { super(message); }
 }
 export async function exerciseOperation(body: Record<string, unknown>): Promise<{
-    kind: "legacy";
-} | {
     kind: "engine";
     session: ExerciseSession;
 }> {

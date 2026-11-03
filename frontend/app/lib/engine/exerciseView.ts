@@ -18,7 +18,7 @@ export function sessionExercise(s: ExerciseSession): Exercise {
                     if(e.variable !== "x") throw new Error("Variable graphique non prise en charge.");
                     // Decode the prescribed viewport only; no generation or grading here.
                     const bound=(n:typeof e.window.xMin)=>n.numerator/n.denominator;
-                    return {id,type:"graph",content:{xMin:bound(e.window.xMin),xMax:bound(e.window.xMax),yMin:bound(e.window.yMin),yMax:bound(e.window.yMax),showGrid:e.showGrid,functions:e.functions.map(f=>({color:f.color,expression:f.latex,showExpression:f.showExpression}))}};
+                    return {id,type:"graph",content:{xMin:bound(e.window.xMin),xMax:bound(e.window.xMax),yMin:bound(e.window.yMin),yMax:bound(e.window.yMax),showGrid:e.showGrid,functions:e.functions.map(f=>({color:f.color,expression:f.latex,showExpression:f.showExpression,samples:e.plot?.values[e.functions.indexOf(f)]}))}};
                 }
                 default: throw new Error(`Rendu non pris en charge : ${e.type}`);
             }

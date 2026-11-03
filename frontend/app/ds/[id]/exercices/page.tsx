@@ -54,26 +54,18 @@ function DSExercicesPage() {
   }, [dsId, user, authLoading]);
 
   const handleNextClick = useCallback(
-    async (hasErrors: boolean,engineSessionId?:string) => {
+    async (_hasErrors: boolean,engineSessionId?:string) => {
       const rec = currentRecommendation.current;
       if (!rec) return;
 
       // Soumet la réponse au backend DS
       try {
-        await dsApi.submitDSAnswer(
-          dsId,
-          String(rec.exercise_id),
-          rec.competences,
-          !hasErrors,
-          rec.difficulty,
-          engineSessionId,
-        );
+        if(!engineSessionId)throw new Error("Une correction Engine est requise.");
+        await dsApi.submitDSAnswer(dsId,engineSessionId);
       } catch (e) {
         console.error("[DS Exercices] submitDSAnswer error:", e);
-        if(engineSessionId) {
-          setError("La réponse n’a pas pu être enregistrée. Réessayez.");
-          throw e;
-        }
+        setError("La réponse n’a pas pu être enregistrée. Réessayez.");
+        throw e;
       }
 
       // Charge la prochaine recommandation

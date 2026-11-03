@@ -202,8 +202,8 @@ function setExercisesResult(exercises: unknown[], error: unknown = null, version
   const chain = {
     select: vi.fn().mockReturnThis(),
     or: vi.fn((filter: string) => {
-      expect(filter).toBe("catalog_id.is.null,active_version_id.not.is.null");
-      result.data = exercises?.filter((row: any) => row.catalog_id == null || row.active_version_id != null);
+      expect(filter).toBe("and(catalog_id.not.is.null,active_version_id.not.is.null)");
+      result.data = exercises?.filter((row: any) => row.catalog_id != null && row.active_version_id != null);
       return chain;
     }),
     eq: vi.fn().mockReturnThis(),
@@ -217,134 +217,33 @@ function setExercisesResult(exercises: unknown[], error: unknown = null, version
   mockFrom.mockImplementation((table?: string) => (table === "exercise_versions" ? versionChain : chain) as any);
 }
 
-describe("getRandomExercise", () => {
-  const validExercise = {
-    id: 1,
-    title: "Exercice test",
-    chapter: "Fonctions",
-    difficulty: "easy",
-    content: {
-      variables: [{ id: 1, name: "a", type: "integer", min: 1, max: 10 }],
-      elements: [{ id: 1, type: "text", content: {} }],
-    },
-  };
-
-  it("retourne un exercice et ses variables générées", async () => {
-    setExercisesResult([validExercise]);
-    const result = await getRandomExercise();
-    expect(result.row.id).toBe(1);
-    expect(typeof result.variables).toBe("object");
-    expect("a" in result.variables).toBe(true);
+describe("getRandomExercise / Engine only",()=>{
+  const row={id:1,title:"Exercice",catalog_id:"catalog",active_version_id:"v1",content:{}};
+  const version={id:"v1",exercise_id:1,editorial_status:"published",elements:[{type:"question"}]};
+  it("selects a published canonical exercise without generating browser variables",async()=>{
+    setExercisesResult([row],null,[version]);
+    expect(await getRandomExercise()).toEqual({row,variables:{}});
   });
-
-  it("exclut un brouillon canonique à chaque tirage privilégié", async () => {
-    setExercisesResult([validExercise, { ...validExercise, id: 2, catalog_id: "draft", active_version_id: null }]);
-    for (let i = 0; i < 100; i++) expect((await getRandomExercise()).row.id).toBe(1);
-    expect(mockFrom.mock.results.at(-1)?.value.or).toHaveBeenCalled();
-  });
-
-  it("conserve un canonique actif dans la sélection", async () => {
-    setExercisesResult([{ ...validExercise, catalog_id: "canonical", active_version_id: "published" }], null,
-      [{id:"published",exercise_id:1,editorial_status:"published",elements:[{type:"question"}]}]);
-    expect((await getRandomExercise()).row.id).toBe(1);
-  });
-
-  it("sélectionne uniquement les versions publiées compatibles avec l'écran du duel", async () => {
-    vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true");
-    const rows = [1,2,3,4,5].map(id => ({...validExercise,id,catalog_id:"c"+id,active_version_id:"v"+id,content:{}}));
-    setExercisesResult(rows,null,[
-      {id:"v1",exercise_id:1,editorial_status:"published",elements:[{type:"text"},{type:"question"},{type:"explanation"}]},
-      {id:"v2",exercise_id:2,editorial_status:"published",elements:[{type:"mcq"}]},
-      {id:"v3",exercise_id:3,editorial_status:"published",elements:[{type:"question"},{type:"question"}]},
-      {id:"v4",exercise_id:4,editorial_status:"draft",elements:[{type:"question"}]},
-      {id:"v5",exercise_id:5,editorial_status:"published",elements:[{type:"question"},{type:"function-graph"}]},
-    ]);
-    for(let i=0;i<10;i++) expect((await getRandomExercise()).row.id).toBe(1);
-  });
-
-  it("refuse le repli historique lorsque Engine est activé", async () => {
-    vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true");
-    setExercisesResult([validExercise]);
-    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
-  });
-
-  it("refuse une sélection ne contenant que des brouillons", async () => {
-    setExercisesResult([{ ...validExercise, catalog_id: "draft", active_version_id: null }]);
-    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
-  });
-
-  it("génère une variable entière dans l'intervalle [min, max]", async () => {
-    setExercisesResult([validExercise]);
-    for (let i = 0; i < 20; i++) {
-      const { variables } = await getRandomExercise();
-      expect(variables["a"]).toBeGreaterThanOrEqual(1);
-      expect(variables["a"]).toBeLessThanOrEqual(10);
-      expect(Number.isInteger(variables["a"])).toBe(true);
+  it("rejects legacy and unpublished rows even when Engine flag is disabled",async()=>{
+    vi.stubEnv("NOVLEARN_ENGINE_ENABLED","false");
+    for(const candidate of [{...row,catalog_id:null},{...row,active_version_id:null}]){
+      setExercisesResult([candidate],null,[version]);
+      await expect(getRandomExercise()).rejects.toThrow("No exercises available");
     }
   });
-
-  it("génère une variable décimale", async () => {
-    const decimalExercise = {
-      ...validExercise,
-      content: {
-        variables: [{ id: 2, name: "x", type: "decimal", min: 0, max: 1, decimals: 2 }],
-        elements: [],
-      },
-    };
-    setExercisesResult([decimalExercise]);
-    const { variables } = await getRandomExercise();
-    expect(variables["x"]).toBeGreaterThanOrEqual(0);
-    expect(variables["x"]).toBeLessThanOrEqual(1);
+  it("refuses incompatible elements and non-published versions",async()=>{
+    for(const candidate of [{...version,elements:[{type:"mcq"}]},{...version,editorial_status:"draft"}]){
+      setExercisesResult([row],null,[candidate]);
+      await expect(getRandomExercise()).rejects.toThrow("No exercises available");
+    }
   });
-
-  it("lève une erreur si aucun exercice disponible", async () => {
-    setExercisesResult([]);
+  it("fails closed when version lookup fails",async()=>{
+    setExercisesResult([row],null,[]);
     await expect(getRandomExercise()).rejects.toThrow("No exercises available");
   });
-
-  it("lève une erreur en cas d'erreur Supabase", async () => {
-    setExercisesResult(null as any, new Error("DB error"));
-    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
-  });
-
-  it("filtre les exercices QCM (titre contenant QCM)", async () => {
-    const qcmExercise = { ...validExercise, id: 99, title: "QCM — Fonctions" };
-    const normalExercise = { ...validExercise, id: 1 };
-    setExercisesResult([qcmExercise, normalExercise]);
-    const { row } = await getRandomExercise();
-    expect(row.id).toBe(1);
-  });
-
-  it("filtre les exercices avec un élément de type mcq", async () => {
-    const mcqExercise = {
-      ...validExercise,
-      id: 88,
-      content: { variables: [], elements: [{ id: 1, type: "mcq", content: {} }] },
-    };
-    const normalExercise = { ...validExercise, id: 2 };
-    setExercisesResult([mcqExercise, normalExercise]);
-    const { row } = await getRandomExercise();
-    expect(row.id).toBe(2);
-  });
-
-  it("utilise tous les exercices si tous sont QCM (fallback)", async () => {
-    const qcmExercise = { ...validExercise, id: 77, title: "QCM test" };
-    setExercisesResult([qcmExercise]);
-    const { row } = await getRandomExercise();
-    expect(row.id).toBe(77);
-  });
-
-  it("ignore les variables sans nom", async () => {
-    const exoSansNom = {
-      ...validExercise,
-      content: {
-        variables: [{ id: 1, name: "", type: "integer", min: 0, max: 10 }],
-        elements: [],
-      },
-    };
-    setExercisesResult([exoSansNom]);
-    const { variables } = await getRandomExercise();
-    expect(Object.keys(variables)).toHaveLength(0);
+  it("rejects empty catalogues and database errors",async()=>{
+    setExercisesResult([]);await expect(getRandomExercise()).rejects.toThrow();
+    setExercisesResult([],Error("DB"));await expect(getRandomExercise()).rejects.toThrow();
   });
 });
 

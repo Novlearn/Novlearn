@@ -52,8 +52,4 @@ class CreateDSRequest(BaseModel):
 
 
 class SubmitDSAnswerRequest(BaseModel):
-    exercise_id: str
-    competence_ids: List[str]
-    is_correct: bool
-    difficulty: str
-    engine_session_id: Optional[UUID] = None
+    engine_session_id: UUID

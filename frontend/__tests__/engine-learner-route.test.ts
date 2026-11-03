@@ -46,16 +46,16 @@ vi.mock("../app/lib/engine/runtime", () => ({ runEngine: async (op: string, p: J
             return r;
         }
         if (op === "projectPublicInstance")
-            return e.projectPublicInstance(p.official as unknown as ExerciseInstance);
+            return e.projectPublicInstance(p.official as unknown as ExerciseInstance,{sampleGraphs:p.sampleGraphs===true});
         return e.gradeAnswer(p.official as unknown as ExerciseInstance, p.submission);
     } }));
 import { handleLearnerExercise } from "../app/lib/engine/learner";
 import {withEngineJob} from "../app/lib/engine/guards";
-it("restores old projections but never grades an active snapshot with another archive",async()=>{
+it("refuses resuming or grading snapshots from another archive",async()=>{
     const opened=await(await handleLearnerExercise(req({action:"open",exerciseId:"122"}))).json();
     delete state.rows[0].metadata.engineArtifactSha256;
     const calls=state.calls;
-    expect((await handleLearnerExercise(req({action:"resume",sessionId:opened.session.sessionId}))).status).toBe(200);
+    expect((await handleLearnerExercise(req({action:"resume",sessionId:opened.session.sessionId}))).status).toBe(409);
     expect((await handleLearnerExercise(req({action:"answer",sessionId:opened.session.sessionId,questionId:"q",answer:{format:"latex",source:"2"}}))).status).toBe(409);
     expect(state.calls).toBe(calls);
     expect((await handleLearnerExercise(req({action:"skip",sessionId:opened.session.sessionId}))).status).toBe(200);

@@ -3,7 +3,6 @@
 import React from "react";
 import { Latex } from "../components/ui";
 import { RendererProps, VariationTableContent } from "../types/exercise";
-import { substituteVariables } from "../utils/math/parsing";
 
 const VariationTableRenderer: React.FC<
   RendererProps<VariationTableContent>
@@ -32,7 +31,7 @@ const VariationTableRenderer: React.FC<
                 key={i}
                 className="border border-gray-300 bg-slate-50 p-2 min-w-[80px]"
               >
-                <Latex>{substituteVariables(point.x, variables)}</Latex>
+                <Latex>{point.x}</Latex>
               </th>
             ))}
           </tr>
@@ -46,7 +45,7 @@ const VariationTableRenderer: React.FC<
             </td>
             {points.map((point, i) => {
               const val = point.value
-                ? substituteVariables(point.value, variables)
+                ? point.value
                 : "";
               const isLast = i === points.length - 1;
 
