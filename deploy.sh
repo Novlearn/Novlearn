@@ -61,11 +61,11 @@ fi
 # ===== FRONTEND =====
 echo "📦 Déploiement du frontend..."
 
-# Vérifier et installer Node.js 20+ si nécessaire
+# Vérifier et installer Node.js 24.19+ si nécessaire
 echo "🔍 Vérification de la version de Node.js..."
 NODE_VERSION=$(node --version 2>/dev/null | cut -d'v' -f2 | cut -d'.' -f1 || echo "0")
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo "⚠️  Node.js version $NODE_VERSION détectée. Installation de Node.js 20+..."
+if ! node -e 'const [major,minor]=process.versions.node.split(".").map(Number);process.exit(major===24&&minor>=19?0:1)' 2>/dev/null; then
+    echo "⚠️  Node.js version $NODE_VERSION détectée. Installation de Node.js 24.19+..."
     
     # Détecter la distribution Linux
     if [ -f /etc/os-release ]; then
@@ -75,21 +75,21 @@ if [ "$NODE_VERSION" -lt 20 ]; then
         OS="unknown"
     fi
     
-    # Installer Node.js 20+ selon la distribution
+    # Installer Node.js 24.19+ selon la distribution
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
         sudo apt-get install -y nodejs
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ]; then
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+        curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
         sudo yum install -y nodejs
     else
-        echo "❌ Distribution non supportée: $OS. Veuillez installer Node.js 20+ manuellement."
+        echo "❌ Distribution non supportée: $OS. Veuillez installer Node.js 24.19+ manuellement."
         exit 1
     fi
     
     echo "✅ Node.js $(node --version) installé avec succès"
 else
-    echo "✅ Node.js $(node --version) est déjà installé (version >= 20)"
+    echo "✅ Node.js $(node --version) est déjà installé (version 24.19+)"
 fi
 
 # Aller dans le répertoire frontend

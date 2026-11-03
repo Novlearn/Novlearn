@@ -20,9 +20,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate environment before build or VPS access
+        run: node scripts/validate-deployment-env.mjs
+        env:
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NEXT_PUBLIC_SITE_URL: ${{ github.ref == 'refs/heads/develop' && 'https://staging.novlearn.fr' || 'https://novlearn.fr' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
+          ENGINE_URL: ${{ secrets.ENGINE_URL }}
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
 
       - name: Install frontend dependencies (staging)
         working-directory: ./frontend
@@ -33,6 +46,8 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: https://staging.novlearn.fr
@@ -40,6 +55,12 @@ jobs:
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
+
+      - name: Build duel-server (staging)
+        working-directory: ./duel-server
+        run: |
+          npm ci --no-audit
+          npm run build
 
       - name: Create .env file for backend (staging)
         run: |
@@ -54,7 +75,7 @@ jobs:
           echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
-          echo "CORS_ORIGINS=https://novlearn.fr,https://www.novlearn.fr,https://staging.novlearn.fr" >> backend/.env
+          echo "CORS_ORIGINS=https://staging.novlearn.fr" >> backend/.env
           echo "LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}" >> backend/.env
           echo "VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}" >> backend/.env
           echo "VAPID_PRIVATE_KEY=\"${{ secrets.VAPID_PRIVATE_KEY }}\"" >> backend/.env
@@ -70,6 +91,10 @@ jobs:
           mkdir -p duel-server
           echo "# Novlearn Duel-server (Colyseus) Configuration - staging" > duel-server/.env
           echo "PORT=2568" >> duel-server/.env
+          echo "APP_ENV=staging" >> duel-server/.env
+          echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> duel-server/.env
+          echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> duel-server/.env
+          echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> duel-server/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> duel-server/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> duel-server/.env
 
@@ -160,7 +185,7 @@ jobs:
             # Frontend start (port 3001) — uses pre-built .next from CI
             cd /opt/novlearn-staging/frontend
             if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
-              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
 
@@ -168,6 +193,10 @@ jobs:
             cat > .env.local << 'ENVSTAGING'
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            APP_ENV=staging
+            NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
+            ENGINE_URL=${{ secrets.ENGINE_URL }}
+            ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}
             NEXT_PUBLIC_SITE_URL=https://staging.novlearn.fr
             NEXT_PUBLIC_COLYSEUS_URL=https://staging.novlearn.fr/duel-ws
             NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}
@@ -195,6 +224,19 @@ jobs:
             # Start Next.js on port 3001 (use next start explicitly for correct port binding)
             nohup ./node_modules/.bin/next start -p 3001 > ../frontend-staging.log 2>&1 &
             echo $! > frontend-staging.pid
+
+            # Run the staging duel build with its own staging .env and port.
+            cd /opt/novlearn-staging/duel-server
+            npm ci --omit=dev --no-audit
+            if [ -f duel-staging.pid ]; then
+              OLD_PID=$(cat duel-staging.pid || echo "")
+              if [ -n "$OLD_PID" ] && ps -p "$OLD_PID" > /dev/null 2>&1; then
+                kill "$OLD_PID"
+                sleep 2
+              fi
+            fi
+            NODE_ENV=production nohup node dist/app.config.js > ../duel-staging.log 2>&1 &
+            echo $! > duel-staging.pid
 
       - name: Verify staging deployment
         uses: appleboy/ssh-action@master
@@ -254,11 +296,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       # Use npm install instead of npm ci to avoid lockfile sync false positives (e.g. ajv nested deps)
+      - name: Validate environment before build or VPS access
+        run: node scripts/validate-deployment-env.mjs
+        env:
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NEXT_PUBLIC_SITE_URL: ${{ github.ref == 'refs/heads/develop' && 'https://staging.novlearn.fr' || 'https://novlearn.fr' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
+          ENGINE_URL: ${{ secrets.ENGINE_URL }}
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm install --prefer-offline --no-audit
@@ -268,6 +323,8 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: https://novlearn.fr
@@ -309,6 +366,10 @@ jobs:
         run: |
           echo "# Novlearn Duel-server (Colyseus) Configuration" > duel-server/.env
           echo "PORT=2567" >> duel-server/.env
+          echo "APP_ENV=production" >> duel-server/.env
+          echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> duel-server/.env
+          echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> duel-server/.env
+          echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> duel-server/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> duel-server/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> duel-server/.env
 
@@ -469,7 +530,7 @@ jobs:
             # Installer Node.js et npm si nécessaire
             if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
               echo "📦 Installation de Node.js et npm..."
-              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
               sudo apt-get install -y nodejs
               if ! command -v npm &> /dev/null; then
                 sudo apt-get install -y npm
@@ -543,6 +604,10 @@ jobs:
 
             echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" > /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> /opt/novlearn/frontend/.env.local
+            echo "APP_ENV=production" >> /opt/novlearn/frontend/.env.local
+            echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> /opt/novlearn/frontend/.env.local
+            echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> /opt/novlearn/frontend/.env.local
+            echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_SITE_URL=https://novlearn.fr" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_COLYSEUS_URL=https://novlearn.fr/duel-ws" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> /opt/novlearn/frontend/.env.local

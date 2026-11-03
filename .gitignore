@@ -53,4 +53,11 @@ htmlcov/
 # Private exercise correction corpus (L0)
 /.local/exercise-correction/
 
+# Disposable local Admin SQL replay artifacts
 /.local/engine-staging/
+/.local/release-0.2.0/
+/.local/admin-build-020/
+/.local/admin-sql-replay/
+
+# Synthetic local backup/restore evidence, never publish archives
+/.local/admin-sql-backup/
