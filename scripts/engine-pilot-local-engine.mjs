@@ -10,9 +10,10 @@ const certifiedEngineIdentities = {
   '0.1.2': '632e5b2e6c0292a08b23872a0fad93504edac7e9e997a1129cebd8799110ed6b',
   '0.1.3': 'aa07fdf2c833900957dce2e2632e05a845025f96bf2264147a4eea99b35bcab9',
   '0.1.4': '791c6472fc87ba0559d8889cf3f4482ab5466def49eec9e418ddbc2c7278f3ea',
+  '0.1.6': '206444e1efea28fd163589f36d8b0ad653968d90f3dd2e3fc8f77da135a0798d',
 };
 
-export async function startLocalEngine(artifact, { port = 3151, releaseVersion = '0.1.4' } = {}) {
+export async function startLocalEngine(artifact, { port = 3151, releaseVersion = '0.1.6' } = {}) {
   assert(Object.hasOwn(certifiedEngineIdentities, releaseVersion), 'Unknown private Engine release.');
   const certifiedEngineIdentity = {version: releaseVersion, pipelineVersion:'0.1.0', engineArchiveSha256:certifiedEngineIdentities[releaseVersion]};
   assert([3151,3152,3153,3154,3155].includes(port), 'Only isolated local Engine ports are allowed.');

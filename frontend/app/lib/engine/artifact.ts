@@ -1,2 +1,2 @@
 // Exact package bytes, distinct from the schema/pipeline compatibility version.
-export const ENGINE_ARTIFACT_SHA256 = "791c6472fc87ba0559d8889cf3f4482ab5466def49eec9e418ddbc2c7278f3ea";
+export const ENGINE_ARTIFACT_SHA256 = "206444e1efea28fd163589f36d8b0ad653968d90f3dd2e3fc8f77da135a0798d";
