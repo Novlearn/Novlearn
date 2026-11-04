@@ -11,7 +11,7 @@ jobs:
     environment: staging
     # Avoid running staging deploy for PR checks / merge refs.
     # We only deploy staging on direct pushes to the develop branch.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
@@ -102,7 +102,6 @@ jobs:
           NEXT_PUBLIC_COLYSEUS_URL: https://staging.novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
       - name: Build duel-server (staging)
         working-directory: ./duel-server
         run: |

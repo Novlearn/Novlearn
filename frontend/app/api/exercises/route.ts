@@ -31,7 +31,6 @@ function getCorsHeaders(request?: Request): Record<string, string> {
     "Vary": "Origin",
   };
 }
-
 // Gère la requête "Preflight" du navigateur pour le CORS
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, {
@@ -158,7 +157,6 @@ export async function GET(request: Request) {
     );
   }
 }
-
 // Delivery/correction on the existing endpoint. Editorial writes belong to Admin.
 export async function PATCH(request: Request) {
   const { handleLearnerExercise } = await import("../../lib/engine/learner");
