@@ -7,7 +7,7 @@ const db = new PGlite();
 const first = '20000000-0000-4000-8000-000000000001';
 const second = '20000000-0000-4000-8000-000000000002';
 const student = '20000000-0000-4000-8000-000000000003';
-const artifact = 'cc62b257798bda3ebffe293f49997e72ece2ee11b7f392c28e92217ceb45af91';
+const artifact = '6d1d52f38297d6f91be0eaa4aea57eb63f61973eae4cc83d86fd0aa6651dd85a';
 const digest = 'a'.repeat(64);
 let checks = 0;
 const check = (actual, expected) => { assert.deepEqual(actual, expected); checks++; };

@@ -146,11 +146,14 @@ Secrets GitHub Actions consommés par le workflow :
 | VPS | `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY` |
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
 | Notifications | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
-| Divers | `ADMIN_API_SECRET`, `LOG_LEVEL`, `NEXT_PUBLIC_GA_ID` |
+| Analytics | `NEXT_PUBLIC_GA_ID` |
 
-> `DATABASE_URL` et `SECRET_KEY` sont encore référencés par le workflow mais
-> hérités d'une architecture PostgreSQL/SQLAlchemy abandonnée : aucun code ne
-> les lit. Voir `docs/AUDIT_REPRISE.md`.
+Les quatre secrets Supabase doivent être définis dans les environnements GitHub
+`staging` et `production`. Les références non sensibles des deux projets sont
+définies comme variables GitHub `SUPABASE_STAGING_PROJECT_REF` et
+`SUPABASE_PRODUCTION_PROJECT_REF` ; le workflow les compare à l'URL du projet
+avant tout transfert vers le VPS. Les secrets VPS, SMTP et VAPID restent des
+secrets communs au dépôt.
 
 ## Documentation
 
@@ -182,7 +185,7 @@ Projet académique — École Centrale de Lyon (PE69).
 Pour copier les exercices et la taxonomie de production vers le staging : [guide et commandes](docs/catalog-sync.md).
 
 Pour initialiser les deux projets Supabase et configurer Auth, les secrets et Realtime : [guide des environnements](docs/supabase-environments.md).
-# Intégration Engine 0.2.0
+# Intégration Engine 0.2.1
 
-Voir le [guide des environnements et de l'intégration](docs/engine-0.2.0-integration.md)
+Voir le [guide des environnements et de l'intégration](docs/engine-0.2.1-integration.md)
 pour les variables GitHub/Vercel, le host isolé et l'ordre des migrations.

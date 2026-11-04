@@ -24,26 +24,12 @@ function getCorsHeaders(request?: Request): Record<string, string> {
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-secret",
+    "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
     "Cache-Control": "private, no-store",
     "Vary": "Origin",
   };
-}
-
-// Comparaison sécurisée timing-safe pour prévenir les timing attacks
-function timingSafeCompare(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): boolean {
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }
 
 // Gère la requête "Preflight" du navigateur pour le CORS
@@ -173,77 +159,8 @@ export async function GET(request: Request) {
   }
 }
 
-// Internal delivery/correction on the existing exercise endpoint. The editor's
-// POST/DELETE contracts remain separate and retain their existing authorization.
+// Delivery/correction on the existing endpoint. Editorial writes belong to Admin.
 export async function PATCH(request: Request) {
   const { handleLearnerExercise } = await import("../../lib/engine/learner");
   return handleLearnerExercise(request);
-}
-
-// --- POST : ADMIN ONLY ---
-export async function POST(request: Request) {
-  const corsHeaders = getCorsHeaders(request);
-  const authHeader = request.headers.get("x-admin-secret");
-  // Utilisation d'une comparaison timing-safe pour prévenir les timing attacks
-  if (!timingSafeCompare(authHeader, process.env.ADMIN_API_SECRET)) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders },
-    );
-  }
-
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-    const body = await request.json();
-    const { data, error } = await supabaseAdmin
-      .from("exercises")
-      .upsert(body)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return NextResponse.json({ success: true, data }, { headers: corsHeaders });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500, headers: corsHeaders },
-    );
-  }
-}
-
-// --- DELETE : ADMIN ONLY ---
-export async function DELETE(request: Request) {
-  const corsHeaders = getCorsHeaders(request);
-  const authHeader = request.headers.get("x-admin-secret");
-  // Utilisation d'une comparaison timing-safe pour prévenir les timing attacks
-  if (!timingSafeCompare(authHeader, process.env.ADMIN_API_SECRET)) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders },
-    );
-  }
-
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
-  if (!id)
-    return NextResponse.json(
-      { error: "Missing ID" },
-      { status: 400, headers: corsHeaders },
-    );
-
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-    const { error } = await supabaseAdmin
-      .from("exercises")
-      .delete()
-      .eq("id", id);
-    if (error) throw error;
-    return NextResponse.json({ success: true }, { headers: corsHeaders });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500, headers: corsHeaders },
-    );
-  }
 }

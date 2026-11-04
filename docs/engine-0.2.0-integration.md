@@ -1,3 +1,5 @@
+> Document historique 0.2.0. Pour la livraison active Novlearn staging, voir [Engine 0.2.1](engine-0.2.1-integration.md).
+
 # Engine 0.2.0 : intégration et environnements
 
 ## Ce qui est livré

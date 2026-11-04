@@ -6,6 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 const certifiedEngineIdentities = {
+  '0.2.1': '6d1d52f38297d6f91be0eaa4aea57eb63f61973eae4cc83d86fd0aa6651dd85a',
   '0.2.0': 'cc62b257798bda3ebffe293f49997e72ece2ee11b7f392c28e92217ceb45af91',
   '0.1.8': '82e499726db2da454627903ed65802eaa2ab3e7185f7f6cb3c84c1cbdbde3cea',
   '0.1.1': 'c7116f9310da49478deb43ca64e04b974efd34765b45a22294c13b5235bdf927',
@@ -15,7 +16,7 @@ const certifiedEngineIdentities = {
   '0.1.6': '206444e1efea28fd163589f36d8b0ad653968d90f3dd2e3fc8f77da135a0798d',
 };
 
-export async function startLocalEngine(artifact, { port = 3151, releaseVersion = '0.2.0' } = {}) {
+export async function startLocalEngine(artifact, { port = 3151, releaseVersion = '0.2.1' } = {}) {
   assert(Object.hasOwn(certifiedEngineIdentities, releaseVersion), 'Unknown private Engine release.');
   const certifiedEngineIdentity = {version: releaseVersion, pipelineVersion:'0.1.0', engineArchiveSha256:certifiedEngineIdentities[releaseVersion]};
   assert([3151,3152,3153,3154,3155].includes(port), 'Only isolated local Engine ports are allowed.');

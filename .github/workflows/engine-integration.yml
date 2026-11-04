@@ -1,7 +1,7 @@
 name: Verify Engine integration
 on:
   push:
-    branches: [integration/engine-0.2.0]
+    branches: [codex/integration-engine-staging]
   pull_request:
 permissions:
   contents: read
@@ -46,4 +46,74 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: node --test ../scripts/validate-deployment-env.test.mjs
+      - run: node --test ../scripts/validate-deployment-env.test.mjs ../scripts/probe-engine-vps-staging.test.mjs
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements-test.txt
+      - run: python -m pytest
+        working-directory: backend
+
+  qualify_staging_host:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/integration-engine-staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check staging configuration names without disclosing values
+        env:
+          ENGINE_URL: ${{ secrets.ENGINE_URL }}
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for name in ENGINE_URL ENGINE_TOKEN VPS_HOST VPS_USERNAME VPS_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then echo "::error::Missing staging configuration: $name"; exit 1; fi
+          done
+          if [ "$ENGINE_URL" != 'http://127.0.0.1:3151/run' ]; then echo '::error::ENGINE_URL must point to staging loopback port 3151'; exit 1; fi
+          if [[ ! "$ENGINE_TOKEN" =~ ^[a-f0-9]{64}$ ]]; then echo '::error::ENGINE_TOKEN must be the 64-character staging host token'; exit 1; fi
+      - name: Upload read-only probe to staging VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: scripts/probe-engine-vps-staging.mjs
+          target: /tmp/novlearn-engine-021-${{ github.run_id }}
+      - name: Qualify existing Engine without deployment or business writes
+        uses: appleboy/ssh-action@master
+        env:
+          APP_ENV: staging
+          ENGINE_URL: ${{ secrets.ENGINE_URL }}
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: APP_ENV,ENGINE_URL,ENGINE_TOKEN
+          script: |
+            set -e
+            node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major!==24||minor<19)throw new Error("Staging requires Node 24.19+ <25")'
+            node /tmp/novlearn-engine-021-${{ github.run_id }}/scripts/probe-engine-vps-staging.mjs
+            python3 - <<'PY'
+            import pathlib,re
+            config=pathlib.Path('/etc/apache2/sites-available/novlearn.fr-le-ssl.conf').read_text()
+            blocks=re.findall(r'<VirtualHost\b[^>]*>.*?</VirtualHost>',config,re.S)
+            staging=[b for b in blocks if re.search(r'^\s*ServerName\s+staging\.novlearn\.fr\s*$',b,re.M)]
+            assert len(staging)==1, 'Staging Apache virtual host unavailable'
+            assert re.search(r'ProxyPass\s+/api/exercises\s+http://(?:localhost|127\.0\.0\.1):3001/api/exercises',staging[0]), 'Staging Apache must route /api/exercises to Next port 3001 before generic /api'
+            print('PASS: staging Apache exercise route targets Next port 3001; no Apache change')
+            PY
+      - name: Require activation after host qualification
+        env:
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED }}
+        run: |
+          if [ "$NOVLEARN_ENGINE_ENABLED" != 'true' ]; then echo '::error::Set staging variable NOVLEARN_ENGINE_ENABLED=true after the successful host qualification, before deployment'; exit 1; fi

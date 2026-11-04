@@ -17,6 +17,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Validate staging deployment configuration
+        shell: bash
+        env:
+          DEPLOY_ENV: staging
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_PRODUCTION_PROJECT_REF: ${{ vars.SUPABASE_PRODUCTION_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          for name in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_KEY SUPABASE_SERVICE_ROLE_KEY VPS_HOST VPS_USERNAME VPS_SSH_KEY SUPABASE_STAGING_PROJECT_REF SUPABASE_PRODUCTION_PROJECT_REF; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required deployment configuration is missing: $name"
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REF" != "refs/heads/develop" || "$DEPLOY_ENV" != "staging" ]]; then
+            echo "::error::Staging deployment branch and GitHub environment do not match"
+            exit 1
+          fi
+          if [[ ! "$NEXT_PUBLIC_SUPABASE_URL" =~ ^https://([a-z0-9-]+)\.supabase\.co/?$ ]]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL must be a Supabase project URL"
+            exit 1
+          fi
+          actual_project_ref="${BASH_REMATCH[1]}"
+          if [[ "$SUPABASE_STAGING_PROJECT_REF" == "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" != "$SUPABASE_STAGING_PROJECT_REF" || "$actual_project_ref" == "$SUPABASE_PRODUCTION_PROJECT_REF" ]]; then
+            echo "::error::Staging Supabase URL does not match the configured staging project"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,9 +72,22 @@ jobs:
           ENGINE_URL: ${{ secrets.ENGINE_URL }}
           ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
 
+      - name: Require qualified staging Engine activation
+        env:
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED }}
+        run: |
+          if [ "$NOVLEARN_ENGINE_ENABLED" != 'true' ]; then
+            echo '::error::Set staging variable NOVLEARN_ENGINE_ENABLED=true only after host qualification'
+            exit 1
+          fi
+
       - name: Install frontend dependencies (staging)
         working-directory: ./frontend
-        run: npm install --prefer-offline --no-audit
+        run: npm ci --no-audit
+
+      - name: Verify exact Engine package
+        working-directory: ./frontend
+        run: npm run verify:engine
 
       - name: Build frontend (staging)
         working-directory: ./frontend
@@ -54,7 +102,6 @@ jobs:
           NEXT_PUBLIC_COLYSEUS_URL: https://staging.novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
 
       - name: Build duel-server (staging)
         working-directory: ./duel-server
@@ -71,8 +118,6 @@ jobs:
           echo "HOST=0.0.0.0" >> backend/.env
           echo "PORT=8011" >> backend/.env
           echo "SCHEDULER_ENABLED=false" >> backend/.env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> backend/.env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
           echo "CORS_ORIGINS=https://staging.novlearn.fr" >> backend/.env
@@ -116,33 +161,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "frontend/**,frontend/.next/**,backend/**,backend/.env,duel-server/**,deploy.sh"
+          source: "frontend/**,frontend/.next/**,backend/**,backend/.env,duel-server/**,duel-server/.env,scripts/probe-engine-vps-staging.mjs,scripts/start-staging-process.mjs"
           target: "/opt/novlearn-staging"
           strip_components: 0
-
-      - name: Deploy Apache config to VPS (staging)
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "apache/*.conf"
-          target: "/tmp/"
-          strip_components: 1
-
-      - name: Apply Apache config (staging)
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            sudo cp /tmp/novlearn.fr.conf /etc/apache2/sites-available/
-            sudo cp /tmp/novlearn.fr-le-ssl.conf /etc/apache2/sites-available/
-            sudo a2ensite novlearn.fr.conf novlearn.fr-le-ssl.conf
-            sudo mkdir -p /var/www/novlearn-staging
-            sudo chown -R $USER:$USER /var/www/novlearn-staging
-            sudo apache2ctl configtest && sudo systemctl reload apache2
 
       - name: Setup and run staging stack (no systemd)
         uses: appleboy/ssh-action@master
@@ -184,10 +205,8 @@ jobs:
 
             # Frontend start (port 3001) — uses pre-built .next from CI
             cd /opt/novlearn-staging/frontend
-            if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
-              curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-              sudo apt-get install -y nodejs
-            fi
+            # Do not install or upgrade a shared production runtime from staging.
+            node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major!==24||minor<19)throw new Error("Staging requires Node 24.19+ <25; provision a staging runtime first")'
 
             # Write .env.local for server-side runtime vars (NEXT_PUBLIC_* are baked in CI build)
             cat > .env.local << 'ENVSTAGING'
@@ -201,10 +220,10 @@ jobs:
             NEXT_PUBLIC_COLYSEUS_URL=https://staging.novlearn.fr/duel-ws
             NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            ADMIN_API_SECRET=${{ secrets.ADMIN_API_SECRET }}
             ENVSTAGING
 
-            npm install --prefer-offline --no-audit
+            chmod 600 .env.local
+            npm ci --omit=dev --no-audit
 
             # Force cleanup on port 3001 (avoid EADDRINUSE).
             # Without this, `next start` fails with EADDRINUSE and Apache serves stale hashes => 404 for CSS/chunks.
@@ -222,8 +241,7 @@ jobs:
             fi
 
             # Start Next.js on port 3001 (use next start explicitly for correct port binding)
-            nohup ./node_modules/.bin/next start -p 3001 > ../frontend-staging.log 2>&1 &
-            echo $! > frontend-staging.pid
+            nohup node ../scripts/start-staging-process.mjs frontend > ../frontend-staging.log 2>&1 &
 
             # Run the staging duel build with its own staging .env and port.
             cd /opt/novlearn-staging/duel-server
@@ -235,8 +253,8 @@ jobs:
                 sleep 2
               fi
             fi
-            NODE_ENV=production nohup node dist/app.config.js > ../duel-staging.log 2>&1 &
-            echo $! > duel-staging.pid
+            chmod 600 .env
+            nohup node ../scripts/start-staging-process.mjs duel-server > ../duel-staging.log 2>&1 &
 
       - name: Verify staging deployment
         uses: appleboy/ssh-action@master
@@ -280,6 +298,8 @@ jobs:
               exit 1
             fi
 
+            cd /opt/novlearn-staging
+            node scripts/probe-engine-vps-staging.mjs --processes
             echo "✅ Déploiement staging vérifié"
 
   # ---- PRODUCTION: only on push to main ----
@@ -287,33 +307,55 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     # Avoid running production deploy for PR checks / merge refs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.19.0"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      # Use npm install instead of npm ci to avoid lockfile sync false positives (e.g. ajv nested deps)
-      - name: Validate environment before build or VPS access
-        run: node scripts/validate-deployment-env.mjs
+      - name: Validate production deployment configuration
+        shell: bash
         env:
-          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
-          NEXT_PUBLIC_SITE_URL: ${{ github.ref == 'refs/heads/develop' && 'https://staging.novlearn.fr' || 'https://novlearn.fr' }}
+          DEPLOY_ENV: production
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
-          ENGINE_URL: ${{ secrets.ENGINE_URL }}
-          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ vars.SUPABASE_STAGING_PROJECT_REF }}
+          SUPABASE_PRODUCTION_PROJECT_REF: ${{ vars.SUPABASE_PRODUCTION_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          for name in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_KEY SUPABASE_SERVICE_ROLE_KEY VPS_HOST VPS_USERNAME VPS_SSH_KEY SUPABASE_STAGING_PROJECT_REF SUPABASE_PRODUCTION_PROJECT_REF; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required deployment configuration is missing: $name"
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REF" != "refs/heads/main" || "$DEPLOY_ENV" != "production" ]]; then
+            echo "::error::Production deployment branch and GitHub environment do not match"
+            exit 1
+          fi
+          if [[ ! "$NEXT_PUBLIC_SUPABASE_URL" =~ ^https://([a-z0-9-]+)\.supabase\.co/?$ ]]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL must be a Supabase project URL"
+            exit 1
+          fi
+          actual_project_ref="${BASH_REMATCH[1]}"
+          if [[ "$SUPABASE_STAGING_PROJECT_REF" == "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" != "$SUPABASE_PRODUCTION_PROJECT_REF" || "$actual_project_ref" == "$SUPABASE_STAGING_PROJECT_REF" ]]; then
+            echo "::error::Production Supabase URL does not match the configured production project"
+            exit 1
+          fi
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      # Use npm install instead of npm ci to avoid lockfile sync false positives (e.g. ajv nested deps)
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm install --prefer-offline --no-audit
@@ -323,15 +365,12 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
-          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
-          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: https://novlearn.fr
           NEXT_PUBLIC_COLYSEUS_URL: https://novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_API_SECRET: ${{ secrets.ADMIN_API_SECRET }}
 
       # Build duel-server in CI so the VPS only installs prod deps (no tsc, no devDeps).
       - name: Build duel-server
@@ -347,8 +386,6 @@ jobs:
           echo "DEBUG=False" >> backend/.env
           echo "HOST=0.0.0.0" >> backend/.env
           echo "PORT=8010" >> backend/.env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> backend/.env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
           echo "CORS_ORIGINS=https://novlearn.fr,https://www.novlearn.fr" >> backend/.env
@@ -366,10 +403,6 @@ jobs:
         run: |
           echo "# Novlearn Duel-server (Colyseus) Configuration" > duel-server/.env
           echo "PORT=2567" >> duel-server/.env
-          echo "APP_ENV=production" >> duel-server/.env
-          echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> duel-server/.env
-          echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> duel-server/.env
-          echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> duel-server/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> duel-server/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> duel-server/.env
 
@@ -530,7 +563,7 @@ jobs:
             # Installer Node.js et npm si nécessaire
             if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
               echo "📦 Installation de Node.js et npm..."
-              curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
               sudo apt-get install -y nodejs
               if ! command -v npm &> /dev/null; then
                 sudo apt-get install -y npm
@@ -604,16 +637,10 @@ jobs:
 
             echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" > /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> /opt/novlearn/frontend/.env.local
-            echo "APP_ENV=production" >> /opt/novlearn/frontend/.env.local
-            echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> /opt/novlearn/frontend/.env.local
-            echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> /opt/novlearn/frontend/.env.local
-            echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_SITE_URL=https://novlearn.fr" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_COLYSEUS_URL=https://novlearn.fr/duel-ws" >> /opt/novlearn/frontend/.env.local
             echo "NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}" >> /opt/novlearn/frontend/.env.local
             echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> /opt/novlearn/frontend/.env.local
-            echo "ADMIN_API_SECRET=${{ secrets.ADMIN_API_SECRET }}" >> /opt/novlearn/frontend/.env.local
-
             export PATH="/usr/bin:/usr/local/bin:$PATH"
             ./deploy.sh
 
