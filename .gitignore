@@ -56,8 +56,6 @@ htmlcov/
 
 # Workstation-only files and local data
 /.local/
-docs/audits/2026-10-lot1a-local-*
-docs/audits/2026-11-03-engine-publication-and-environments.md
 scripts/admin-backup-assertions.sql
 scripts/admin-backup-snapshot.sql
 scripts/compare-admin-backup.mjs
