@@ -183,3 +183,45 @@ jobs:
           NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED }}
         run: |
           if [ "$NOVLEARN_ENGINE_ENABLED" != 'true' ]; then echo '::error::Set staging variable NOVLEARN_ENGINE_ENABLED=true after the successful host qualification, before deployment'; exit 1; fi
+
+  diagnose_staging_engine:
+    if: always() && needs.provision_staging_node_runtime.result == 'success' && needs.qualify_staging_host.result == 'failure'
+    needs: [provision_staging_node_runtime, qualify_staging_host]
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 5
+    steps:
+      - name: Read Engine container state and compare its token without revealing it
+        uses: appleboy/ssh-action@master
+        env:
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: ENGINE_TOKEN
+          command_timeout: 3m
+          script: |
+            set -eu
+            project=novlearn-engine-staging
+            ids="$(sudo docker ps -aq --filter "label=com.docker.compose.project=$project")"
+            if [ -z "$ids" ]; then
+              echo "engine_container=not_found_for_expected_project"
+              exit 0
+            fi
+
+            index=0
+            for id in $ids; do
+              index=$((index + 1))
+              state="$(sudo docker inspect --format '{{.State.Status}}' "$id")"
+              health="$(sudo docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}not_configured{{end}}' "$id")"
+              restarts="$(sudo docker inspect --format '{{.RestartCount}}' "$id")"
+              configured_token="$(sudo docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$id" | awk 'index($0, "ENGINE_TOKEN=") == 1 { sub(/^ENGINE_TOKEN=/, ""); print; exit }')"
+              token_match=no
+              if [ -n "$configured_token" ] && [ "$configured_token" = "$ENGINE_TOKEN" ]; then
+                token_match=yes
+              elif [ -z "$configured_token" ]; then
+                token_match=missing_in_container
+              fi
+              echo "engine_container_$index state=$state health=$health restarts=$restarts github_token_match=$token_match"
+            done
