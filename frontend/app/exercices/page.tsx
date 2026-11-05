@@ -14,6 +14,10 @@ import { useGuestMode } from "../hooks/useGuestMode";
 // Composant qui lit l'URL
 function ExercisePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const idFromUrl = searchParams.get("id") || undefined;
+  const chapterFromUrl = searchParams.get("chapter") || undefined;
+  const recommendationKey = chapterFromUrl ?? "";
   const { user, loading: authLoading, isGuest } = useAuth();
   const { hasReachedLimit } = useGuestMode();
   const [error, setError] = useState<string | null>(null);
@@ -25,14 +29,11 @@ function ExercisePageContent() {
   const [recommendedCompetenceId, setRecommendedCompetenceId] = useState<string | null | undefined>(undefined);
   const [recommendedCompetences, setRecommendedCompetences] = useState<string[] | undefined>(undefined);
   const [recommendLoading, setRecommendLoading] = useState(false);
+  const [resolvedRecommendationKey, setResolvedRecommendationKey] = useState<string | null>(null);
   const [mode, setMode] = useState<'test' | 'recommendation' | undefined>(undefined);
   const [testChapter, setTestChapter] = useState<string | undefined>(undefined);
   const [nextKey, setNextKey] = useState(0);
   const [currentExerciseTitle, setCurrentExerciseTitle] = useState<string | null>(null);
-
-  const searchParams = useSearchParams();
-  const idFromUrl = searchParams.get("id") || undefined;
-  const chapterFromUrl = searchParams.get("chapter") || undefined;
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,6 +58,8 @@ function ExercisePageContent() {
       setRecommendedCompetenceId(undefined);
       setMode(undefined);
       setTestChapter(undefined);
+      setRecommendLoading(false);
+      setResolvedRecommendationKey(null);
       return;
     }
     let cancelled = false;
@@ -85,14 +88,19 @@ function ExercisePageContent() {
         }
       })
       .finally(() => {
-        if (!cancelled) setRecommendLoading(false);
+        if (!cancelled) {
+          setRecommendLoading(false);
+          setResolvedRecommendationKey(recommendationKey);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [idFromUrl, chapterFromUrl]);
+  }, [idFromUrl, chapterFromUrl, recommendationKey]);
 
   const exerciseId = idFromUrl ?? recommendedId;
+  const recommendationPending = !idFromUrl &&
+    (recommendLoading || resolvedRecommendationKey !== recommendationKey);
   
   // Debug: log shouldCountPoints value
   useEffect(() => {
@@ -219,7 +227,7 @@ function ExercisePageContent() {
       {/* Zone d'exercice */}
       <div className="flex-1">
         <div className="bg-slate-800/60 backdrop-blur-sm rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] p-6 md:p-8">
-          {!idFromUrl && recommendLoading ? (
+          {recommendationPending ? (
             <div className="flex items-center justify-center gap-2 py-12 text-blue-200">
               <Loader2 className="w-6 h-6 animate-spin" />
               <span
@@ -310,3 +318,4 @@ export default function ExercicesPage() {
     </Layout>
   );
 }
+
