@@ -23,7 +23,7 @@ Lancer chaque service dans son dossier avec `npm run dev` (frontend, port 3000; 
 
 Copier les exemples `backend/.env.example` et `duel-server/.env.example` vers `.env`, puis créer `frontend/.env.local`. Renseigner l'URL et la clé publique Supabase côté frontend; les clés de service restent uniquement dans les environnements serveur (`SUPABASE_SERVICE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`). Configurer aussi `NEXT_PUBLIC_COLYSEUS_URL` côté frontend. Ne jamais versionner de vrais secrets.
 
-Les variables et procédures pour relier production et staging sont décrites dans [docs/supabase-environments.md](docs/supabase-environments.md). Pour synchroniser le catalogue, consulter [docs/catalog-sync.md](docs/catalog-sync.md).
+Les variables et procédures pour relier production et staging sont décrites dans [docs/supabase-environments.md](docs/supabase-environments.md).
 
 ## Vérifier et diagnostiquer
 
@@ -44,5 +44,4 @@ Les migrations historiques sont conservées dans `supabase/migrations/`. Pour in
 - [ARCHITECTURE.md](ARCHITECTURE.md) — architecture et composants
 - [README-TESTS.md](README-TESTS.md) — commandes et conventions de tests
 - [docs/supabase-environments.md](docs/supabase-environments.md) — staging, production et restauration
-- [docs/catalog-sync.md](docs/catalog-sync.md) — synchronisation du catalogue
 - [docs/engine-0.2.1-integration.md](docs/engine-0.2.1-integration.md) — archive moteur actuellement intégrée
