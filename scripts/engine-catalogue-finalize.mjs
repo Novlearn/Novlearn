@@ -1,6 +1,6 @@
 // Reconcile the four bounded runs without importing private catalogue data into Git.
 import assert from 'node:assert/strict';
-import {readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 const pointer=JSON.parse(await readFile('.local/engine-staging/catalogue-current.json','utf8'));
@@ -25,5 +25,6 @@ const privateReport={projectRef:pointer.projectRef,sourceHash:pointer.sha256,arc
 const bytes=JSON.stringify(privateReport,null,2)+'\n';
 await writeFile(path.join(work,'qualified-final.private.json'),bytes);
 const proof={date:new Date().toISOString(),projectRef:pointer.projectRef,sourceSha256:pointer.sha256,archiveSha256:release.archiveSha256,packageVersion:release.packageVersion,exercises:rows.length,generations:rows.reduce((n,r)=>n+r.tests.length,0),deterministicReplays:rows.length,correctAnswers:rows.reduce((n,r)=>n+r.tests.reduce((s,t)=>s+t.questions.length,0),0),incorrectAnswers:rows.reduce((n,r)=>n+r.tests.reduce((s,t)=>s+t.questions.length,0),0),emptyInputs:rows.reduce((n,r)=>n+r.tests.reduce((s,t)=>s+t.questions.length,0),0),privateReportSha256:createHash('sha256').update(bytes).digest('hex'),scope:'Exact bounded Linux archive: generation, public projection, correct/incorrect/empty answers and deterministic replay. Separate from independent pedagogical review and browser reception.',ids:rows.map(r=>r.id)};
-await writeFile('docs/audits/2026-11-engine-catalogue-qualification.json',JSON.stringify(proof,null,2)+'\n');
+await mkdir('.local/engine-staging',{recursive:true});
+await writeFile('.local/engine-staging/catalogue-qualification-summary.json',JSON.stringify(proof,null,2)+'\n');
 console.log(JSON.stringify({...proof,ids:undefined}));

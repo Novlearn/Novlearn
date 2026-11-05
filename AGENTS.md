@@ -112,7 +112,7 @@ Uses **Next.js App Router**. All routes are under `frontend/app/`.
 - `competence_settings.py` — loads competence IDs and max_points from the `competences` table (cached in-process)
 - `recommandation_settings.py` — streak thresholds and difficulty distribution parameters
 
-**Chapter placement test** (`chapter_placement_test.py`): Tests users on a chapter before allowing free practice; uses adaptive questioning.
+**Chapter placement test** (`chapter_placement_test.py`): Legacy routes and logic remain, but migration 019 drops their state tables and no later migration recreates them. Treat the flow as unavailable until its product scope and schema are reconciled; see `docs/product/user-flows.md`.
 
 ### Duel server (`duel-server/`)
 
@@ -141,4 +141,4 @@ Migrations in `supabase/migrations/`. Key tables:
 
 ### Deployment
 
-Automated via GitHub Actions on push to `main`. Deploys to a VPS with Apache reverse proxy + systemd services. The backend runs on port 8010 internally.
+Automated via GitHub Actions on direct pushes to `develop` (staging) and `main` (production). Staging runs beside production on the VPS; production uses Apache reverse proxy + systemd services. The backend listens on port 8010 in production and 8011 in staging. Pull requests run CI but do not deploy.

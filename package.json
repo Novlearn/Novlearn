@@ -14,8 +14,6 @@
     "test:coverage:backend": "cd backend && python -m pytest --cov=. --cov-report=term-missing",
     "test:coverage:duel": "cd duel-server && npm run test:coverage",
     "test:coverage:frontend": "cd frontend && npm run test:coverage",
-    "db:sync:catalog": "node scripts/sync-catalog.mjs",
-    "test:catalog-sync": "node --test scripts/sync-catalog.test.mjs",
     "test:correction": "npm run test:correction:backend && npm run test:frontend && npm run test:duel && npm run test:correction:scripts",
     "test:correction:backend": "node scripts/correction-backend-tests.mjs",
     "test:correction:scripts": "node --test scripts/correction-catalog.test.mjs scripts/correction-triggers.test.mjs",

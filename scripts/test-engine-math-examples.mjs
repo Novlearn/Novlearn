@@ -1,7 +1,7 @@
 // Synthetic arithmetic checks against the exact Engine installed by NovLearn.
 // No database, learner answer or replacement evaluator is used here.
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import {instantiateExercise,projectPublicInstance,gradeAnswer} from '../frontend/scripts/engine-catalogue-api.mjs';
 const packageVersion=JSON.parse(await readFile(new URL('../frontend/node_modules/novlearn-exercise-engine/package.json',import.meta.url),'utf8')).version;
 
@@ -33,5 +33,6 @@ undefinedDefinition.generation.definitions=[];undefinedDefinition.generation.con
 undefinedDefinition.elements=[{id:'formula',type:'expression',latex:'4/0'}];
 assert.equal(instantiateExercise(undefinedDefinition,{seed:42,instanceId:'synthetic-division-zero'}).ok,false);
 const proof={date:'2026-11-02',scope:'Official installed Engine core; synthetic definitions, no database or deployment qualification',packageVersion,cases:results,divisionByZeroRejected:true};
-await writeFile(new URL(`../docs/audits/2026-11-engine-math-examples-${packageVersion}.json`,import.meta.url),JSON.stringify(proof,null,2)+'\n');
+await mkdir(new URL('../.local/engine-staging/',import.meta.url),{recursive:true});
+await writeFile(new URL(`../.local/engine-staging/math-examples-${packageVersion}.json`,import.meta.url),JSON.stringify(proof,null,2)+'\n');
 console.log(JSON.stringify(proof,null,2));

@@ -18,6 +18,8 @@ __pycache__/
 .env
 .env.local
 .env*.local
+.env.*
+!.env*.example
 
 # IDE
 .vscode/
@@ -46,26 +48,14 @@ coverage/
 htmlcov/
 .pytest_cache/
 .vitest/
+.cache/
+.turbo/
 
 # Claude Code local settings
 .claude/settings.local.json
 
-# Private exercise correction corpus (L0)
-/.local/exercise-correction/
-
-# Disposable local Admin SQL replay artifacts
-/.local/engine-staging/
-/.local/release-0.2.0/
-/.local/admin-build-020/
-/.local/admin-sql-replay/
-
-# Synthetic local backup/restore evidence, never publish archives
-/.local/admin-sql-backup/
-
-# Remaining workstation-only Admin replay artifacts and local evidence
+# Workstation-only files and local data
 /.local/
-docs/audits/2026-10-lot1a-local-*
-docs/audits/2026-11-03-engine-publication-and-environments.md
 scripts/admin-backup-assertions.sql
 scripts/admin-backup-snapshot.sql
 scripts/compare-admin-backup.mjs

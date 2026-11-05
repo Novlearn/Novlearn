@@ -2,7 +2,7 @@
 -- Migration 010 créait chapters avec SERIAL INT + db_aliases TEXT[].
 -- En production la table a été recréée avec UUID + aliases TEXT[].
 -- La définition enregistrée avant correction est archivée dans
--- docs/audits/022_chapters_uuid_and_competences_fix.original.sql.
+-- This migration is the canonical record of the chapter UUID and competence fix.
 -- On corrige ici sans supprimer les chapitres ni leurs associations.
 
 -- ============================================================

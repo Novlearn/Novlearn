@@ -127,7 +127,7 @@ En local, renseigner les valeurs staging dans `frontend/.env.local`, `backend/.e
 
 Les trois services d'un environnement doivent utiliser la même URL Supabase et les clés correspondantes. Le frontend staging doit aussi avoir sa propre `NEXT_PUBLIC_SITE_URL`, son URL Colyseus et son backend/API staging. Les `NEXT_PUBLIC_*` sont intégrées au build : reconstruire et redéployer après modification, puis se reconnecter.
 
-Le workflow existant reste un déploiement VPS. Il prépare le fichier d'environnement Colyseus staging, mais son étape de démarrage staging ne lance pas Colyseus : prévoir le processus staging dédié sur le port 2568 et vérifier le proxy `/duel-ws`. La migration d'hébergement Vercel/Render reste un chantier séparé ; le proxy API de production dépend encore d'Apache.
+Le workflow actuel déploie les trois services sur le VPS : FastAPI staging sur le port 8011, frontend sur 3001 et Colyseus sur 2568. Il vérifie les processus staging et l'API, puis lance la sonde moteur; vérifier également le proxy `/duel-ws` si le routage temps réel change. La production utilise les ports 8010 et 2567 derrière Apache.
 
 ## 5. Realtime, Storage et effets externes
 
@@ -137,20 +137,7 @@ Si des buckets Storage sont utilisés, recréer leurs noms, options et policies 
 
 Garder `SCHEDULER_ENABLED=false` sur le backend staging. Plusieurs liens email du backend pointent encore explicitement vers `https://novlearn.fr` : prévoir leur configuration avant de tester des notifications staging destinées à des testeurs.
 
-## 6. Copier le catalogue
-
-Après l'initialisation du schéma, suivre [catalog-sync.md](catalog-sync.md). Copier `.env.catalog-sync.example` vers `.env.catalog-sync.local`, remplir les deux références de projet et connexions PostgreSQL, puis :
-
-```powershell
-npm run db:sync:catalog
-npm run db:sync:catalog -- --apply
-```
-
-L'outil ajoute/met à jour `chapters`, `competences`, `exercises`, et éventuellement `flashcards`. Il conserve les exercices propres au staging, bloque les collisions non reconnues et n'importe pas les utilisateurs, scores ou historiques.
-
-Pour l'action GitHub manuelle, ajouter les quatre secrets `CATALOG_*` documentés dans l'environnement `staging`. Ils sont différents des clés API des applications. Un rôle PostgreSQL en lecture seule sur le catalogue peut servir de source production.
-
-## 7. Maintenir les schémas ensuite
+## 6. Maintenir les schémas ensuite
 
 Créer une migration pour chaque évolution et versionner le même fichier pour les deux projets. Après vérification de la baseline et de l'historique, appliquer les nouvelles migrations au staging, tester, puis les appliquer à la production au moment de la release :
 
@@ -166,7 +153,7 @@ Les migrations peuvent transformer des données : relire le SQL avant applicatio
 
 Le staging peut temporairement contenir la prochaine évolution de schéma. Pour reprendre un catalogue prod dans ce cas, l'outil accepte les colonnes staging supplémentaires avec défaut ou nullable, mais refuse les différences de types incompatibles.
 
-## 8. Vérification finale
+## 7. Vérification finale
 
 Tester avec des comptes dédiés : inscription email et création de profil, connexion Google, mot de passe oublié, mode invité, entraînement et enregistrement d'une tentative. Avec deux navigateurs, tester l'invitation, la redirection Realtime, le match Colyseus et son historique.
 
