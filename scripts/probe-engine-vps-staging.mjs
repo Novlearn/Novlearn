@@ -21,7 +21,7 @@ export async function probeEngine(env) {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${env.ENGINE_TOKEN}`, 'x-engine-archive-sha256': archiveSha256 },
     body: JSON.stringify({ protocolVersion: 1, requestId, operation: 'parseMathInput', payload: calculation }),
   });
-  assert.equal(response.status, 200, 'Authenticated Engine calculation failed');
+  assert.equal(response.status, 200, `Authenticated Engine calculation failed (HTTP ${response.status})`);
   assert.equal(response.headers.get('x-engine-archive-sha256'), archiveSha256, 'Engine response fingerprint mismatch');
   const result = await response.json();
   assert.equal(result.requestId, requestId, 'Engine request identity mismatch');
