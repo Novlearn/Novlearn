@@ -176,6 +176,7 @@ jobs:
             set -e
             sudo mkdir -p /opt/novlearn-staging
             sudo chown -R $USER:$USER /opt/novlearn-staging
+            export PATH="/opt/novlearn-staging/runtime/node/bin:$PATH"
             cd /opt/novlearn-staging
 
             # Backend venv + deps

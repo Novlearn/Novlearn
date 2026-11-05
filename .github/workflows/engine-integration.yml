@@ -58,8 +58,73 @@ jobs:
       - run: python -m pytest
         working-directory: backend
 
+  provision_staging_node_runtime:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/integration-engine-staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - name: Install verified Node.js 24 into the staging-only runtime directory
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 8m
+          script: |
+            set -eu
+            version=v24.22.0
+            case "$(uname -m)" in
+              x86_64) arch=x64 ;;
+              aarch64|arm64) arch=arm64 ;;
+              *) echo "Unsupported staging VPS architecture"; exit 1 ;;
+            esac
+            asset="node-${version}-linux-${arch}.tar.xz"
+            runtime_root=/opt/novlearn-staging/runtime
+            runtime_dir="$runtime_root/node-${version}-linux-${arch}"
+            runtime_link="$runtime_root/node"
+
+            sudo mkdir -p "$runtime_root"
+            sudo chown "$(id -un):$(id -gn)" "$runtime_root"
+            tmp="$(mktemp -d "$runtime_root/.node-${version}.XXXXXX")"
+            trap 'rm -rf "$tmp"' EXIT
+
+            if [ -x "$runtime_dir/bin/node" ]; then
+              installed_version="$("$runtime_dir/bin/node" --version)"
+              if [ "$installed_version" != "$version" ]; then
+                echo "Unexpected Node runtime already exists at the staging runtime path"
+                exit 1
+              fi
+            else
+              base="https://nodejs.org/dist/${version}"
+              curl -fsS "$base/$asset" -o "$tmp/$asset"
+              curl -fsS "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
+              expected="$(awk -v file="$asset" '$2 == file { print $1 }' "$tmp/SHASUMS256.txt")"
+              if [ -z "$expected" ]; then
+                echo "Official Node.js checksum entry is missing"
+                exit 1
+              fi
+              printf '%s  %s\n' "$expected" "$tmp/$asset" | sha256sum -c -
+              mkdir "$tmp/unpacked"
+              tar -xJf "$tmp/$asset" --strip-components=1 -C "$tmp/unpacked"
+              if [ -e "$runtime_dir" ]; then
+                echo "A different Node runtime already occupies the versioned staging path"
+                exit 1
+              fi
+              mv "$tmp/unpacked" "$runtime_dir"
+            fi
+
+            if [ -e "$runtime_link" ] && [ ! -L "$runtime_link" ]; then
+              echo "The staging Node runtime path exists and is not a symlink; refusing to replace it"
+              exit 1
+            fi
+            ln -sfn "$runtime_dir" "$runtime_link"
+            "$runtime_link/bin/node" --version
+            "$runtime_link/bin/npm" --version
+
   qualify_staging_host:
     if: github.event_name == 'push' && github.ref == 'refs/heads/codex/integration-engine-staging'
+    needs: provision_staging_node_runtime
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 5
@@ -101,6 +166,7 @@ jobs:
           envs: APP_ENV,ENGINE_URL,ENGINE_TOKEN
           script: |
             set -e
+            export PATH="/opt/novlearn-staging/runtime/node/bin:$PATH"
             node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major!==24||minor<19)throw new Error("Staging requires Node 24.19+ <25")'
             node /tmp/novlearn-engine-021-${{ github.run_id }}/scripts/probe-engine-vps-staging.mjs
             python3 - <<'PY'
