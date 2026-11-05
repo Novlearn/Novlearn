@@ -2,6 +2,75 @@
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
+## Règles de contribution (humains et assistants)
+
+Ces règles s'appliquent à toute correction, fonctionnalité, refactorisation ou modification de documentation. Lire cette section avant de modifier le dépôt.
+
+### Une tâche, une branche, une pull request
+
+**Interdictions absolues : aucun push direct sur `main` ou `develop`, et aucune pull request vers `main`. Les branches de tâche sont les seules branches à pousser; toutes les PR doivent cibler `develop`.**
+
+1. Vérifier le dépôt avec `git remote -v`, puis la branche et les changements locaux avec `git status`. Ne jamais écraser le travail existant ni l'inclure dans sa propre contribution sans vérifier à qui il appartient.
+2. Pour une nouvelle tâche, partir de `develop` à jour et créer une branche dédiée **avant toute modification** : `fix/description-courte`, `feat/description-courte`, `refactor/description-courte` ou `docs/description-courte`. Si une branche de tâche existe déjà, la reprendre après avoir vérifié son périmètre. Ne jamais travailler ni committer directement sur `develop` ou `main`.
+3. Garder une seule tâche cohérente par branche. Faire des commits courts et explicites, en sélectionnant uniquement les fichiers concernés; éviter `git add .` si des modifications étrangères à la tâche sont présentes.
+4. Vérifier le diff et exécuter les contrôles adaptés avant de pousser la branche. Ouvrir ensuite une **pull request vers `develop`**. Si le travail est incomplet, ouvrir une PR en brouillon et indiquer ce qui manque.
+5. La PR doit décrire le problème ou le besoin, les changements, les vérifications réellement effectuées et les limites connues. Ajouter des captures pour une modification visuelle. Demander une revue et attendre sa validation; un assistant ne fusionne pas la PR sans demande explicite du responsable.
+6. Ne jamais pousser directement sur `main` ou `develop`, ni créer ou rediriger une PR vers `main`, y compris pour une correction urgente, de la documentation ou une livraison. Ne pas forcer un push, réécrire l'historique des branches partagées ni supprimer le travail d'autrui. La gestion de la production reste à la charge du responsable, hors de ce parcours de contribution.
+
+Exemple pour démarrer une nouvelle tâche, **avec un répertoire de travail propre** (remplacer le nom d'exemple) :
+
+```bash
+git remote -v
+git status
+git switch develop
+git pull --ff-only origin develop
+git switch -c fix/description-courte
+# Effectuer les changements, les vérifier, puis sélectionner les fichiers :
+git add chemin/du/fichier
+git commit -m "fix: description de la correction"
+git push -u origin fix/description-courte
+```
+
+Sur GitHub, cliquer sur **Compare & pull request**, choisir `develop` comme branche de destination et sa branche de tâche comme source, puis remplir la description. Une PR propose des changements à relire; sa fusion les intègre à la branche de destination.
+
+Si le répertoire contient déjà du travail, ne pas lancer cette séquence telle quelle : identifier ce travail avant de changer de branche. Si Git ou GitHub est inaccessible, signaler précisément l'étape bloquée; ne pas contourner le blocage par un commit ou un push sur une branche partagée, ni annoncer une PR qui n'existe pas.
+
+### Code simple et réutilisation
+
+- Avant d'ajouter du code, rechercher les fonctions, services, hooks, composants et tests existants qui répondent déjà au besoin. Les réutiliser ou les adapter plutôt que créer un second mécanisme équivalent.
+- Privilégier des fonctions courtes, des noms clairs et les conventions du dossier. Limiter les changements au besoin demandé; éviter les abstractions, dépendances, refontes et reformatages sans nécessité.
+- Préserver les comportements existants, l'authentification, les autorisations et les contrats d'API. Ne pas désactiver une protection ni remplacer un appel réel par une simulation pour faire passer une vérification.
+- Pour les exercices, réutiliser l'intégration Engine existante et ses contrats. Ne pas recréer un moteur de génération ou de correction parallèle dans l'application.
+
+### Séparer les responsabilités
+
+- `frontend/` : interface, rendu, interactions et appels aux services via les clients existants. Les fichiers client ne doivent contenir ni secrets, ni clés de service, ni opérations privilégiées sur les données.
+- `backend/` : API FastAPI, règles métier et contrôles d'accès côté serveur. Ne pas ajouter de logique d'interface dans le backend, ni se fier au frontend pour faire respecter les autorisations.
+- `duel-server/` : état et règles autoritaires des matchs en temps réel; conserver la gestion du lobby dans le backend.
+- Respecter les frontières et adaptateurs serveur déjà présents, notamment pour Engine. Pour une évolution transverse, définir le contrat entre services et mettre à jour les appels concernés ensemble, sans dupliquer les règles métier.
+
+### Charte graphique et système de design
+
+- Reprendre les composants et les conventions des écrans existants, notamment `frontend/app/components/ui/`, avant de créer une nouvelle variante.
+- Les références visuelles sont `frontend/app/globals.css` (variables et thèmes) et `frontend/tailwind.config.js` (tokens Tailwind). Utiliser les couleurs sémantiques existantes, par exemple `bg-app-surface`, `text-content-main` et `border-app-border`, plutôt que des couleurs arbitraires.
+- Conserver la cohérence des typographies, espacements, arrondis, ombres, boutons et icônes. Ne pas redéfinir la palette ou le thème global pour un besoin local.
+- Vérifier les thèmes clair et sombre, les formats mobile et bureau, les états chargement/vide/erreur, le contraste et l'utilisation au clavier pour les éléments modifiés.
+
+### Infrastructure et VPS : hors périmètre des contributions courantes
+
+- Une tâche applicative ou documentaire n'autorise **aucune intervention sur le VPS**, en staging comme en production : pas de SSH, commande distante, installation, redémarrage de service, déploiement manuel ou modification de secrets.
+- Ne pas créer, modifier, déplacer ou supprimer les fichiers `.yml` / `.yaml`, les workflows et actions sous `.github/`, ni les configurations ou scripts d'infrastructure et de déploiement (notamment `apache/`, `systemd/`, `deploy.sh` et les scripts associés). Ne pas contourner cette règle en faisant la même modification via un script ou un autre format.
+- Ne pas déclencher ou relancer manuellement de workflow de déploiement ou de maintenance, ni modifier les paramètres GitHub, les environnements ou les secrets. Les contrôles CI automatiques d'une PR restent autorisés.
+- Ne pas appliquer de migration ni de script de modification des données sur une base partagée dans le cadre d'une tâche ordinaire. Préparer les éventuels changements de schéma dans la PR et laisser leur application au responsable.
+- Si une évolution exige un changement d'infrastructure, expliquer le besoin et les fichiers concernés dans la PR, puis laisser cette partie au responsable jusqu'à une **demande explicite dédiée**. Les commandes techniques décrites plus bas ou dans les autres guides ne constituent pas une autorisation d'exécution.
+- Attention : fusionner vers `develop` peut déclencher le déploiement staging existant; fusionner vers `main` peut déclencher la production. La création d'une PR ne vaut pas autorisation de fusion ni de déploiement.
+
+### Vérifications et compte rendu
+
+- Consulter [README.md](README.md) et [README-TESTS.md](README-TESTS.md) pour les commandes à jour. Exécuter les tests, vérifications de types et constructions pertinents pour les services modifiés; pour une modification documentaire seule, vérifier le diff, les liens et les exemples suffit.
+- Ne jamais versionner de secrets, fichiers d'environnement réels, exports privés ou artefacts locaux. Relire les fichiers sélectionnés avant chaque commit.
+- En fin de tâche, indiquer ce qui a changé, les contrôles effectués, la branche et le lien de PR s'il existe. Signaler honnêtement les contrôles non exécutés et les étapes bloquées.
+
 ## Project Overview
 
 Novlearn is a gamified, personalized math practice platform for the French Baccalauréat. It features adaptive exercise recommendation, a 1v1 duel system, competence-based progress tracking, and a chapter placement test.
