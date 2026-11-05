@@ -16,7 +16,10 @@ export async function runEngine(operation: EngineOperation, payload: JsonObject,
         const host = createRemoteHost({ url, token, archiveSha256: ENGINE_ARTIFACT_SHA256 });
         try {
             const result = await host.run(JSON.stringify({ protocolVersion: 1, requestId: randomUUID(), operation, payload }), { signal });
-            if (!result.ok) throw new EngineError(503, "Engine est indisponible ou a interrompu le calcul.");
+            if (!result.ok) {
+                console.error("[Engine] Remote operation failed", { operation, error: result.error });
+                throw new EngineError(503, "Engine est indisponible ou a interrompu le calcul.");
+            }
             return result.value;
         } finally { await host.close(); }
     } catch (error) {
@@ -24,3 +27,4 @@ export async function runEngine(operation: EngineOperation, payload: JsonObject,
         throw new EngineError(503, "Configuration du host Engine indisponible.");
     }
 }
+

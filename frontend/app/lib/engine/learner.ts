@@ -100,6 +100,74 @@ function reveal(official: ExerciseInstance, id: string) {
         return { optionIds: e.expected.optionIds, explanation };
     return undefined;
 }
+type DisplayGraphResult = {
+    ok: true;
+    value: {
+        schemaVersion: 1;
+        profile: "display-graph-v1";
+        instanceId: string;
+        elementId: string;
+        state: "complete" | "partial" | "unsupported";
+        series: {
+            id: string;
+            points: { sample: number; x: number; y: number }[];
+            segments: [number, number][];
+        }[];
+    };
+} | { ok: false; error: string };
+function attachGraphPlot(
+    projected: PublicInstance,
+    official: ExerciseInstance,
+    graphId: string,
+    sampled: DisplayGraphResult,
+) {
+    if (!sampled.ok || sampled.value.schemaVersion !== 1 ||
+        sampled.value.profile !== "display-graph-v1" ||
+        sampled.value.instanceId !== official.instanceId ||
+        sampled.value.elementId !== graphId || sampled.value.state === "unsupported")
+        throw new EngineError(422, "Rendu graphique indisponible.");
+    const source = official.elements.find(e => e.id === graphId);
+    const target = projected.elements.find(e => e.id === graphId);
+    if (!source || source.type !== "function-graph" ||
+        !target || target.type !== "function-graph" ||
+        source.functions.length !== target.functions.length)
+        throw new EngineError(422, "Rendu graphique indisponible.");
+    const xMin = target.window.xMin.numerator / target.window.xMin.denominator;
+    const xMax = target.window.xMax.numerator / target.window.xMax.denominator;
+    if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMin >= xMax)
+        throw new EngineError(422, "Rendu graphique indisponible.");
+    const values = target.functions.map(fn => {
+        const series = sampled.value.series.find(s => s.id === fn.id);
+        if (!series) throw new EngineError(422, "Rendu graphique indisponible.");
+        const points = new Map<number, number>();
+        for (const point of series.points) {
+            if (!Number.isInteger(point.sample) || point.sample < 0 || point.sample > 64 ||
+                !Number.isFinite(point.x) || !Number.isFinite(point.y) || points.has(point.sample))
+                throw new EngineError(422, "Rendu graphique indisponible.");
+            points.set(point.sample, point.y);
+        }
+        const connected = new Set<string>();
+        for (const [from, to] of series.segments) {
+            if (!Number.isInteger(from) || to !== from + 1 || from < 0 || to > 64 ||
+                !points.has(from) || !points.has(to))
+                throw new EngineError(422, "Rendu graphique indisponible.");
+            connected.add(`${from}:${to}`);
+        }
+        const plot = Array<number | null>(513).fill(null);
+        for (let from = 0; from < 64; from++) {
+            if (!connected.has(`${from}:${from + 1}`)) continue;
+            const y0 = points.get(from)!;
+            const y1 = points.get(from + 1)!;
+            for (let step = 0; step <= 8; step++) {
+                const y = y0 + (y1 - y0) * step / 8;
+                if (!Number.isFinite(y)) throw new EngineError(422, "Rendu graphique indisponible.");
+                plot[from * 8 + step] = Object.is(y, -0) ? 0 : y;
+            }
+        }
+        return plot;
+    });
+    target.plot = { version: "cortex-samples-v1", xMin, xMax, values };
+}
 async function transition(admin: SupabaseClient, s: Saved, status: string) {
     const r = await admin.rpc("engine_transition_session", { p_id: s.id, p_owner: s.owner_id, p_revision: s.revision, p_state: s.state, p_status: status });
     if (r.error?.code === "40001")
@@ -194,7 +262,16 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 };
                 if (!generated?.ok || generated.value?.instanceId !== id || generated.value.schemaVersion!==5 || generated.value.engineVersion!=="0.1.0" || generated.value.definition.id!==version.definition.id || generated.value.definition.revision!==version.definition.revision || generated.value.generation.version!=="mulberry32-rejection-v1")
                     throw new EngineError(422, "Cet exercice ne peut pas être généré.");
-                const projected = await runEngine("projectPublicInstance", { official: json(generated.value), sampleGraphs: true }, request.signal);
+                const projectedValue = await runEngine("projectPublicInstance", { official: json(generated.value) }, request.signal);
+                if (!projectedValue || typeof projectedValue !== "object" || Array.isArray(projectedValue))
+                    throw new EngineError(422, "Rendu de cet exercice indisponible.");
+                const projected = projectedValue as unknown as PublicInstance;
+                for (const graph of generated.value.elements.filter(e => e.type === "function-graph")) {
+                    const sampled = await runEngine("sampleDisplayGraph", {
+                        official: json(generated.value), elementId: graph.id, profile: "display-graph-v1",
+                    }, request.signal) as unknown as DisplayGraphResult;
+                    attachGraphPlot(projected, generated.value, graph.id, sampled);
+                }
                 if (!safeProjection(projected))
                     throw new EngineError(422, "Rendu de cet exercice indisponible.");
                 const metadata = { engineArtifactSha256: ENGINE_ARTIFACT_SHA256, title: parent.title, app_title: parent.app_title, chapter: parent.chapter, difficulty: parent.difficulty, competences: parent.competences ?? [], mode, dsId: body.dsId ?? null, preview, guest: !!user.is_anonymous, countPoints: !user.is_anonymous && body.countPoints === true, trackAbandon: body.trackAbandon === true };
@@ -251,3 +328,4 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
         return NextResponse.json({ error: e instanceof EngineError ? e.message : "Service d’exercices indisponible." }, { status: e instanceof EngineError ? e.status : 503, headers });
     }
 }
+
