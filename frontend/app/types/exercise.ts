@@ -48,6 +48,8 @@ export interface VariationTableContent {
 export type GraphFunction = {
   color: string;
   expression: string;
+  /** Approximate coordinates prepared by the server Engine. */
+  samples?: (number | null)[];
   /** Si false, la formule n'est pas affichée dans la légende par défaut.
    *  Utile pour les exercices "identifier la courbe".
    *  L'étudiant peut la révéler via le bouton dédié. */
@@ -59,10 +61,10 @@ export type GraphFunction = {
 export type GraphBound = number | string | "auto";
 
 export interface GraphContent {
-  xMin: GraphBound;
-  xMax: GraphBound;
-  yMin: GraphBound;
-  yMax: GraphBound;
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
   showGrid: boolean;
   functions: GraphFunction[];
 }
@@ -133,6 +135,7 @@ export type ElementContent =
 
 // Union Discriminée pour typage strict
 export type ExerciseElement =
+  | { id:number; type:"value_table"; content:{columns:string[];rows:string[][]} }
   | { id: number; type: "text"; content: TextContent }
   | { id: number; type: "variation_table"; content: VariationTableContent }
   | { id: number; type: "graph"; content: GraphContent }

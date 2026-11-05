@@ -2,6 +2,7 @@
 Modeles Pydantic partages par les routers de l'API Novlearn.
 """
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -23,6 +24,7 @@ class CreateDuelRequest(BaseModel):
 class ChapterTestNextRequest(BaseModel):
     chapter: str
     last_success: bool
+    engine_session_id: Optional[UUID] = None
 
 
 class NotificationPreferencesRequest(BaseModel):
@@ -50,7 +52,4 @@ class CreateDSRequest(BaseModel):
 
 
 class SubmitDSAnswerRequest(BaseModel):
-    exercise_id: str
-    competence_ids: List[str]
-    is_correct: bool
-    difficulty: str
+    engine_session_id: UUID

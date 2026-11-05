@@ -1,0 +1,1296 @@
+From 65f64739e05a2aa903941e5c3c24eec44fb8d152 Mon Sep 17 00:00:00 2001
+From: Buclon Balthazar <balthazar.buclon@etu.ec-lyon.fr>
+Date: Mon, 2 Nov 2026 21:29:54 +0100
+Subject: [PATCH] =?UTF-8?q?feat:=20=C3=89tends=20les=20profils=20exacts=20?=
+ =?UTF-8?q?du=20catalogue=20Staging?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Réunir les suites géométriques et les expressions élémentaires dans le moteur commun évite des corrections propres à chaque application. Les admissions de domaine et les preuves exactes restent bornées et distinctes des comparaisons indéterminées.
+---
+ README.md                               |   7 +-
+ docs/catalogue-staging-0.1.2.md         |  45 ++++
+ docs/decisions.md                       |   9 +
+ docs/progress.md                        |   8 +
+ docs/roadmap.md                         |   8 +
+ package-lock.json                       |   4 +-
+ package.json                            |   2 +-
+ src/contracts/answer-validation.ts      |  12 +-
+ src/contracts/types.ts                  |   5 +
+ src/grading.ts                          |  60 +++++
+ src/instantiation.ts                    |  30 +++
+ src/math/algebra.ts                     |   4 +-
+ src/math/elementary.ts                  | 285 ++++++++++++++++++++++++
+ src/math/input.ts                       |  19 +-
+ src/math/numeric.ts                     |  76 ++++++-
+ src/math/substitution.ts                |  17 +-
+ tests/canonical.test.ts                 |   3 +-
+ tests/catalogue-elementary.test.ts      | 202 +++++++++++++++++
+ tests/generation.test.ts                |   3 +-
+ tests/grading.test.ts                   |   1 -
+ tests/log-affine.test.ts                |  16 +-
+ tests/numeric-display-roundtrip.test.ts |  71 ++++++
+ 22 files changed, 850 insertions(+), 37 deletions(-)
+ create mode 100644 docs/catalogue-staging-0.1.2.md
+ create mode 100644 src/math/elementary.ts
+ create mode 100644 tests/catalogue-elementary.test.ts
+ create mode 100644 tests/numeric-display-roundtrip.test.ts
+
+diff --git a/README.md b/README.md
+index 22a93f7..9953e61 100644
+--- a/README.md
++++ b/README.md
+@@ -5,7 +5,7 @@ instancie et corrige des exercices mathématiques. Elle fournit des règles comm
+ à NovLearn élève, NovLearn Admin et aux duels pour éviter des calculs et des
+ corrections divergents entre applications.
+ 
+-Le package privé **0.1.0** est ESM, utilise le **schéma 5** et repose sur
++Le package privé **0.1.4** est ESM, utilise le **schéma 5** et repose sur
+ **CortexJS 0.151.0**, son unique bibliothèque mathématique principale. Le cœur
+ portable ne dépend d’aucun framework ni de MathLive. Un adaptateur Node optionnel
+ isole les calculs côté serveur ; le rendu, les droits, le stockage et les points
+@@ -19,6 +19,11 @@ environnement distant n’est modifié.
+ 
+ ## Disponible aujourd’hui
+ 
++L’[extension du catalogue Staging](docs/catalogue-staging-0.1.2.md) ajoute les
++expressions géométriques, les expressions élémentaires sur domaine positif et
++les bornes logarithmiques exactes. Le pipeline reste 0.1.0 ; les profils et
++l’empreinte exacte du package distinguent ses capacités et son rejeu.
++
+ - Génération reproductible d’entiers, décimaux exacts, choix, tuples et variables
+   calculées rationnelles, avec exclusions, dépendances et contraintes bornées.
+ - Exercices à plusieurs questions, sections et QCM ; données typées pour graphes,
+diff --git a/docs/catalogue-staging-0.1.2.md b/docs/catalogue-staging-0.1.2.md
+new file mode 100644
+index 0000000..c867bea
+--- /dev/null
++++ b/docs/catalogue-staging-0.1.2.md
+@@ -0,0 +1,45 @@
++# Extension commune au catalogue Staging — 2 novembre 2026
++
++L’utilisateur autorise l’extension du moteur partagé par Novlearn et Admin pour
++convertir les exercices historiques de Staging. Le développement part de
++l’archive applicative 0.1.1, dans une branche isolée ; les travaux 0.2 présents
++dans l’autre répertoire ne font pas partie de cette livraison.
++
++Les profils `geometric-expression` et `elementary-positive` couvrent les
++expressions géométriques sur les réels et les expressions élémentaires sur une
++variable strictement positive. L’admission du domaine précède toute réduction.
++Une identité exige la même forme symbolique exacte obtenue par CortexJS dans
++un contexte commun. Des substitutions entières exactes peuvent réfuter une
++identité ; leur accord ne constitue jamais une preuve. Une expression admise
++mais non prouvée reste indéterminée.
++
++Le profil numérique fermé accepte les puissances de e avec exposant réel
++admis et les puissances ±1/2 avec domaine prouvé. Les collections peuvent
++contenir ces nombres exacts, notamment des bornes logarithmiques. Les budgets
++de taille, les divisions par zéro, les domaines des racines/logarithmes et le
++refus des nombres mixtes ambigus restent contrôlés. Il n’y a ni calculateur
++supplémentaire ni réécriture algébrique par expression régulière.
++
++Le premier candidat 0.1.2 a révélé deux défauts de relecture : coefficients
++algébriques groupés et parenthèses de bornes ouvertes sérialisées par CortexJS.
++Le correctif 0.1.3 retire le groupement à l’affichage et admet ces délimiteurs
++dans le dictionnaire de collections, avec des tests de relecture exacts. Les
++archives candidates restent des preuves distinctes, jamais qualifiées par défaut.
++
++Le package privé retenu devient 0.1.4. Les contrats restent schema 5 / pipeline 0.1.0,
++avec des profils additifs. L’empreinte exacte de l’archive distingue les
++exécutions ; l’archive 0.1.1 doit être conservée pour les anciens reçus. Une
++qualification du catalogue vérifie le fonctionnement du moteur ; elle ne
++remplace pas une revue indépendante de chaque énoncé et réponse historique.
++
++La qualification source, l’installation bornée Linux, l’adoption applicative
++et la conversion réelle en base doivent être rapportées séparément. Aucun
++déploiement Production, publication de package ou activation éditoriale
++implicite n’est autorisé par ce document.
++
++Le correctif 0.1.4 rend explicite la multiplication lors de la sérialisation des
++contre-exemples exacts, notamment pour les suites de base fractionnaire. Les
++29 tests du profil élémentaire passent. L'archive immuable sélectionnée est
++791c6472fc87ba0559d8889cf3f4482ab5466def49eec9e418ddbc2c7278f3ea,
++identique dans Novlearn et Admin. Les preuves de qualification du catalogue sont
++conservées dans Novlearn ; elles restent distinctes des reçus éditoriaux Admin.
+diff --git a/docs/decisions.md b/docs/decisions.md
+index c7f8b18..7f224d1 100644
+--- a/docs/decisions.md
++++ b/docs/decisions.md
+@@ -1,5 +1,14 @@
+ # Décisions et ADR
+ 
++## D54 — Catalogue Staging dans le moteur commun (2 novembre 2026)
++
++L’autorisation explicite de l’utilisateur étend Engine pour Novlearn et Admin.
++Les besoins observés et les garanties sont consignés dans
++[le relevé 0.1.2](catalogue-staging-0.1.2.md). Les profils sont bornés, exacts
++et prudents : aucune réussite fondée seulement sur des valeurs échantillonnées.
++Les archives précédentes et les sources éditoriales sont conservées. L’adoption
++des deux applications exige la même archive qualifiée, sans déploiement Production.
++
+ Les ADR décrivent les raisons et conséquences techniques. Les bilans ne sont
+ pas des décisions actives supplémentaires. **Active** signifie toujours applicable
+ avec ses extensions ; **Superseded** signifie remplacée ; **Historical** désigne
+diff --git a/docs/progress.md b/docs/progress.md
+index 2bae0e4..4a647ee 100644
+--- a/docs/progress.md
++++ b/docs/progress.md
+@@ -1,5 +1,13 @@
+ # État et reprise
+ 
++## Extension du catalogue Staging — 2 novembre 2026
++
++L’extension 0.1.2 est décrite dans [le relevé dédié](catalogue-staging-0.1.2.md).
++Les définitions candidates des 111 exercices historiques se valident et
++s’instancient sur un premier tirage. La qualification sur plusieurs tirages et
++de l’archive Linux reste à terminer ; aucune conversion distante n’est encore
++annoncée. Les preuves antérieures ci-dessous restent historiques.
++
+ ## Régression de disponibilité des figures Admin — 17 octobre 2026
+ 
+ La [correction ciblée](certification/numeric-render-cache.md), autorisée par
+diff --git a/docs/roadmap.md b/docs/roadmap.md
+index 8b69fff..e793691 100644
+--- a/docs/roadmap.md
++++ b/docs/roadmap.md
+@@ -1,5 +1,13 @@
+ # Roadmap et critères de passage
+ 
++## Catalogue Staging — extension autorisée du 2 novembre 2026
++
++Qualifier les nouveaux profils sur les domaines et les cinq états de verdict,
++exécuter les régressions, puis tester l’archive Linux exacte sur plusieurs tirages
++des 111 candidats. Adopter les mêmes octets dans les deux applications. Les
++brouillons, la publication éditoriale et la réception utilisateur restent des
++étapes distinctes ; les sources historiques ne sont jamais écrasées.
++
+ ## Correction ciblée de disponibilité — 17 octobre 2026
+ 
+ Une charge Admin combinant figures et vecteurs révèle un timeout natif
+diff --git a/package-lock.json b/package-lock.json
+index a0bee20..a17399f 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "novlearn-exercise-engine",
+-  "version": "0.1.0",
++  "version": "0.1.4",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "novlearn-exercise-engine",
+-      "version": "0.1.0",
++      "version": "0.1.4",
+       "dependencies": {
+         "@cortex-js/compute-engine": "0.151.0"
+       },
+diff --git a/package.json b/package.json
+index f1879d7..ae2b0f6 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "novlearn-exercise-engine",
+-  "version": "0.1.0",
++  "version": "0.1.4",
+   "private": true,
+   "description": "Independent NovLearn exercise engine foundations",
+   "type": "module",
+diff --git a/src/contracts/answer-validation.ts b/src/contracts/answer-validation.ts
+index e62d8af..d4ce35a 100644
+--- a/src/contracts/answer-validation.ts
++++ b/src/contracts/answer-validation.ts
+@@ -26,6 +26,8 @@ export function inspectQuestionAnswer(
+   const algebra = [
+     'expression',
+     'log-affine-positive',
++    'geometric-expression',
++    'elementary-positive',
+     'rational-expression',
+     'equation',
+     'inequality',
+@@ -63,6 +65,8 @@ export function inspectQuestionAnswer(
+       'extended-real',
+       'expression',
+       'log-affine-positive',
++      'geometric-expression',
++      'elementary-positive',
+       'text',
+       'rational-expression',
+       'equation',
+@@ -109,7 +113,13 @@ export function inspectQuestionAnswer(
+     'comparisonDomain',
+   ]);
+   v.literal(p.domain, `${path}/policy/domain`, String(domain));
+-  if (kind === 'log-affine-positive') {
++  if (
++    [
++      'log-affine-positive',
++      'geometric-expression',
++      'elementary-positive',
++    ].includes(String(kind))
++  ) {
+     if (p.form !== 'value-only')
+       v.issue(
+         `${path}/policy/form`,
+diff --git a/src/contracts/types.ts b/src/contracts/types.ts
+index c1b34e4..03d5e87 100644
+--- a/src/contracts/types.ts
++++ b/src/contracts/types.ts
+@@ -120,6 +120,8 @@ export interface QuestionResponse {
+     | 'extended-real'
+     | 'expression'
+     | 'log-affine-positive'
++    | 'geometric-expression'
++    | 'elementary-positive'
+     | 'text'
+     | 'rational-expression'
+     | 'equation'
+@@ -154,6 +156,8 @@ export interface GradingPolicy {
+     | 'extended-real'
+     | 'polynomial'
+     | 'log-affine-positive'
++    | 'geometric-expression'
++    | 'elementary-positive'
+     | 'text'
+     | 'rational-function'
+     | 'equation'
+@@ -280,6 +284,7 @@ export type ExpectedAnswer =
+   | { kind: 'rational'; math: InstantiatedMath; value: RationalValue }
+   | { kind: 'expression'; math: InstantiatedMath }
+   | { kind: 'log-affine-positive'; math: InstantiatedMath }
++  | { kind: 'elementary'; math: InstantiatedMath }
+   | { kind: 'real'; math: InstantiatedMath }
+   | { kind: 'algebra'; math: InstantiatedMath }
+   | { kind: 'collection'; math: InstantiatedMath }
+diff --git a/src/grading.ts b/src/grading.ts
+index cfa91ba..22e5da0 100644
+--- a/src/grading.ts
++++ b/src/grading.ts
+@@ -3,6 +3,7 @@ import { validateSubmission } from './contracts/validation.js';
+ import { supportedSnapshotVersion } from './contracts/snapshot-version.js';
+ import { compareNumeric, prepareNumeric } from './math/numeric.js';
+ import { prepareLogAffine, compareLogAffine } from './math/log-affine.js';
++import { prepareElementary, compareElementary } from './math/elementary.js';
+ import { toleranceSyntax } from './contracts/answer-validation.js';
+ import { checkForm } from './math/forms.js';
+ import { prepareFormReferences } from './math/form-references.js';
+@@ -64,6 +65,8 @@ export interface CorrectionResult {
+     | 'explicit-infinity'
+     | 'exponential-injectivity'
+     | 'positive-exponential'
++    | 'elementary-identity'
++    | 'exact-counterexample'
+     | 'selection'
+     | 'text'
+     | 'exact-polynomial'
+@@ -270,6 +273,63 @@ export function gradeAnswer(
+         'text',
+       );
+     }
++    if (
++      q.response.kind === 'geometric-expression' ||
++      q.response.kind === 'elementary-positive'
++    ) {
++      const variable = q.response.variable;
++      if (
++        !variable ||
++        q.expected.kind !== 'elementary' ||
++        q.policy.domain !== q.response.kind ||
++        q.policy.form !== 'value-only' ||
++        q.policy.comparison !== undefined ||
++        q.policy.comparisonDomain !== undefined ||
++        q.policy.normalization !== undefined ||
++        !instance.definition.variables.some(
++          (v) => v.name === variable && v.domain === 'real',
++        )
++      )
++        return result('error', 'official-elementary');
++      const context = {
++        parameters: Object.keys(instance.generation.values),
++        variables: [variable],
++      };
++      const expected = prepareElementary(
++        q.expected.math.source,
++        context,
++        instance.generation.values,
++        '/expected',
++        variable,
++        q.response.kind,
++      );
++      if (!expected.ok) return result('error', 'official-elementary');
++      const student = prepareElementary(
++        s.answer.source,
++        { variables: [variable] },
++        {},
++        '/answer',
++        variable,
++        q.response.kind,
++      );
++      if (!student.ok)
++        return result(
++          mathFailureState(student.diagnostics),
++          'elementary-admission',
++        );
++      domain = 'same';
++      comparison = 'exact';
++      const verdict = compareElementary(student.value, expected.value);
++      return result(
++        verdict.equal === true
++          ? 'correct'
++          : verdict.equal === false
++            ? 'incorrect'
++            : 'indeterminate',
++        'elementary-comparison',
++        verdict.proof,
++      );
++    }
+     if (q.response.kind === 'log-affine-positive') {
+       domain = 'unknown';
+       const variable = q.response.variable;
+diff --git a/src/instantiation.ts b/src/instantiation.ts
+index 2fb5615..58b30f2 100644
+--- a/src/instantiation.ts
++++ b/src/instantiation.ts
+@@ -20,6 +20,7 @@ import type { InstantiationMathDiagnostic } from './math/substitution.js';
+ import { MathFailure } from './math/substitution.js';
+ import { prepareNumeric } from './math/numeric.js';
+ import { prepareLogAffine } from './math/log-affine.js';
++import { prepareElementary } from './math/elementary.js';
+ import { prepareFormReferences } from './math/form-references.js';
+ import {
+   algebraKind,
+@@ -459,6 +460,35 @@ function instantiateElements(
+         });
+         continue;
+       }
++      if (
++        element.response.kind === 'geometric-expression' ||
++        element.response.kind === 'elementary-positive'
++      ) {
++        const variable =
++          element.response.variable ?? context.variables[0] ?? 'z';
++        const prepared = prepareElementary(
++          element.expectedLatex,
++          { parameters: context.parameters, variables: [variable] },
++          generated.values,
++          `${path}/expectedLatex`,
++          variable,
++          element.response.kind,
++        );
++        if (!prepared.ok)
++          return failElement(
++            prepared.diagnostics.map((d) => ({ ...d, stage: 'expected' })),
++          );
++        elements.push({
++          ...identity,
++          type: 'question',
++          text: text.value,
++          points: element.points,
++          response: { format: 'latex', kind: element.response.kind, variable },
++          policy: element.policy,
++          expected: { kind: 'elementary', math: prepared.value.math },
++        });
++        continue;
++      }
+       if (element.response.kind === 'log-affine-positive') {
+         const variable =
+           element.response.variable ?? context.variables[0] ?? 'z';
+diff --git a/src/math/algebra.ts b/src/math/algebra.ts
+index 24c046d..320cb8c 100644
+--- a/src/math/algebra.ts
++++ b/src/math/algebra.ts
+@@ -470,7 +470,9 @@ export function prepareAlgebra(
+     const denominatorCoefficients = coefficients(denominator, variable, path);
+     if (denominatorCoefficients.every((c) => sign(c, path) === 0))
+       fail('undefined-expression', path, 'The derived denominator is zero.');
+-    const displayLatex = head ? substituted.latex : expression.latex;
++    const displayLatex = (head ? substituted : expression).toLatex({
++      digitGroup: 0,
++    });
+     if (!displayLatex || displayLatex.length > 4096)
+       fail('limit', path, 'Algebra display exceeds its budget.');
+     const math = {
+diff --git a/src/math/elementary.ts b/src/math/elementary.ts
+new file mode 100644
+index 0000000..d9fa051
+--- /dev/null
++++ b/src/math/elementary.ts
+@@ -0,0 +1,285 @@
++import {
++  ComputeEngine,
++  isNumber,
++  isSymbol,
++  isFunction,
++} from '@cortex-js/compute-engine';
++import type { Expression } from '@cortex-js/compute-engine';
++import type { GeneratedValue, InstantiatedMath } from '../contracts/types.js';
++import type { MathInputContext, MathSyntax } from './input.js';
++import { parseMathInput } from './input.js';
++import {
++  admitSource,
++  MathFailure,
++  substituteParameters,
++} from './substitution.js';
++import type { InstantiationMathDiagnostic } from './substitution.js';
++import {
++  exactNumber,
++  exactOrder,
++  prepareNumeric,
++  compareNumeric,
++} from './numeric.js';
++
++export type ElementaryKind = 'geometric-expression' | 'elementary-positive';
++interface PreparedElementary {
++  math: InstantiatedMath;
++  normal: Expression;
++  variable: string;
++  kind: ElementaryKind;
++}
++type Result =
++  | { ok: true; value: PreparedElementary }
++  | { ok: false; diagnostics: InstantiationMathDiagnostic[] };
++function exactTree(e: Expression): boolean {
++  if (isNumber(e)) return exactNumber(e) !== undefined;
++  if (isSymbol(e)) return true;
++  return isFunction(e) && e.ops.every(exactTree);
++}
++/** Positive-variable elementary identities or all-real positive-base exponentials.
++ * Cortex owns parsing, substitution, canonicalization and expansion. Domain
++ * guards run on every raw descendant BEFORE any cancellation or simplification.
++ */
++export function prepareElementary(
++  source: string,
++  context: MathInputContext,
++  values: Readonly<Record<string, GeneratedValue>>,
++  path: string,
++  variable: string,
++  kind: ElementaryKind,
++): Result {
++  const parsed = parseMathInput(source, context, 'school-latex-v1');
++  if (!parsed.ok)
++    return {
++      ok: false,
++      diagnostics: parsed.diagnostics.map((d) => ({ ...d, path })),
++    };
++  const fail = (
++    code: InstantiationMathDiagnostic['code'],
++    message: string,
++  ): never => {
++    throw new MathFailure({ code, path, message });
++  };
++  try {
++    admitSource(source, path);
++    const ce = new ComputeEngine();
++    ce.iterationLimit = 1024;
++    ce.recursionLimit = 64;
++    ce.declare(variable, 'real');
++    if (kind === 'elementary-positive')
++      ce.assume(ce.box(['Greater', variable, 0]));
++    const raw = substituteParameters(
++      ce,
++      parsed.syntax,
++      context.parameters ?? [],
++      values,
++      path,
++      true,
++    );
++    const integer = (n: MathSyntax): number | undefined => {
++      const e = ce.box(n, { form: 'raw' }).canonical.evaluate();
++      const value = exactNumber(e, true);
++      if (typeof value === 'number' && Number.isSafeInteger(value))
++        return value;
++      const ratio = e.toRational();
++      return ratio?.[1] === 1 ? Number(ratio[0]) : undefined;
++    };
++    const sign = (n: MathSyntax): -1 | 0 | 1 | undefined => {
++      if (n === variable) return kind === 'elementary-positive' ? 1 : undefined;
++      if (n === 'ExponentialE' || n === 'Pi') return 1;
++      if (Array.isArray(n)) {
++        const head = n[0],
++          a = n.slice(1) as MathSyntax[];
++        if (head === 'Delimiter') return sign(a[0]!);
++        if (head === 'Exp') return 1;
++        if (head === 'Negate') {
++          const s = sign(a[0]!);
++          return s === undefined ? undefined : s === 0 ? 0 : s === 1 ? -1 : 1;
++        }
++        if (head === 'Power' && sign(a[0]!) === 1) return 1;
++        if (head === 'Sqrt' && sign(a[0]!) === 1) return 1;
++        if (head === 'Multiply' || head === 'Divide' || head === 'Rational') {
++          let product = 1;
++          for (const node of a) {
++            const s = sign(node);
++            if (s === undefined) return undefined;
++            product *= s;
++          }
++          return product === 0 ? 0 : product > 0 ? 1 : -1;
++        }
++        if (head === 'Add') {
++          const ss = a.map(sign);
++          if (ss.every((s) => s === 0 || s === 1) && ss.includes(1)) return 1;
++          if (ss.every((s) => s === 0 || s === -1) && ss.includes(-1))
++            return -1;
++          if (ss.every((s) => s === 0)) return 0;
++          if (a.every(nonnegative) && a.some((x) => sign(x) === 1)) return 1;
++        }
++      }
++      if (ce.box(n, { form: 'raw' }).symbols.some((s) => s === variable))
++        return undefined;
++      const value = exactNumber(
++        ce.box(n, { form: 'raw' }).canonical.evaluate(),
++        true,
++      );
++      return value === undefined ? undefined : exactOrder(value, 0);
++    };
++    const nonnegative = (n: MathSyntax): boolean => {
++      const s = sign(n);
++      if (s === 0 || s === 1) return true;
++      if (Array.isArray(n) && n[0] === 'Square') return true;
++      if (Array.isArray(n) && n[0] === 'Power') {
++        const e = integer(n[2]!);
++        return e !== undefined && e > 0 && e % 2 === 0;
++      }
++      return false;
++    };
++    let nodes = 0;
++    const inspect = (n: MathSyntax, depth = 0): void => {
++      if (++nodes > 128 || depth > 16)
++        fail('limit', 'Elementary expression budget exceeded.');
++      if (typeof n === 'number') return;
++      if (n === variable || n === 'ExponentialE' || n === 'Pi') return;
++      if (!Array.isArray(n))
++        fail(
++          'unsupported',
++          'Only the official real variable and exact constants are admitted.',
++        );
++      const items = n as readonly MathSyntax[];
++      const head = String(items[0]),
++        args = items.slice(1);
++      const unary = ['Negate', 'Square', 'Sqrt', 'Ln', 'Exp', 'Delimiter'];
++      const binary = ['Subtract', 'Divide', 'Rational', 'Power'];
++      if (
++        (unary.includes(head) && args.length !== 1) ||
++        (binary.includes(head) && args.length !== 2) ||
++        (!unary.includes(head) &&
++          !binary.includes(head) &&
++          !['Add', 'Multiply'].includes(head)) ||
++        (['Add', 'Multiply'].includes(head) && args.length < 2)
++      )
++        fail(
++          'unsupported',
++          'Operator or arity outside the elementary profile.',
++        );
++      for (const a of args) inspect(a, depth + 1);
++      if (
++        ['Divide', 'Rational'].includes(head) &&
++        ![1, -1].includes(sign(args[1]!) ?? 0)
++      )
++        fail(
++          'unsupported',
++          'The denominator must be nonzero on the whole official domain.',
++        );
++      if (head === 'Ln' && sign(args[0]!) !== 1)
++        fail(
++          'unsupported',
++          'The logarithm argument must be positive on the whole official domain.',
++        );
++      if (head === 'Sqrt' && !nonnegative(args[0]!))
++        fail(
++          'unsupported',
++          'The radicand must be nonnegative on the whole official domain.',
++        );
++      if (head === 'Power') {
++        const e = integer(args[1]!);
++        if (e !== undefined) {
++          if (Math.abs(e) > 16)
++            fail('limit', 'Integer exponent exceeds sixteen.');
++          if (e <= 0 && ![1, -1].includes(sign(args[0]!) ?? 0))
++            fail(
++              'unsupported',
++              'A nonpositive power requires a nonzero base everywhere.',
++            );
++        } else if (sign(args[0]!) !== 1)
++          fail(
++            'unsupported',
++            'A noninteger or variable exponent requires a positive base everywhere.',
++          );
++      }
++    };
++    inspect(raw.json);
++    const normal = ce.box(['Expand', raw.canonical.json]).evaluate().simplify();
++    if (!normal.isValid || !exactTree(normal))
++      fail('not-calculable', 'No exact symbolic normal form was obtained.');
++    nodes = 0;
++    inspect(normal.json);
++    const displayLatex = normal.toLatex({ digitGroup: 0 });
++    if (!displayLatex || displayLatex.length > 4096)
++      fail('limit', 'Elementary display exceeds its budget.');
++    return {
++      ok: true,
++      value: {
++        math: {
++          source,
++          syntax: parsed.syntax,
++          substituted: raw.json,
++          displayLatex,
++        },
++        normal,
++        variable,
++        kind,
++      },
++    };
++  } catch (error) {
++    return {
++      ok: false,
++      diagnostics: [
++        error instanceof MathFailure
++          ? error.diagnostic
++          : {
++              code: 'substitution-failed',
++              path,
++              message: 'Elementary preparation failed.',
++            },
++      ],
++    };
++  }
++}
++
++/** Acceptance requires an exact symbolic identity. Exact integer counterexamples
++ * may disprove a proposed identity; matching sample points NEVER prove one.
++ */
++export function compareElementary(
++  a: PreparedElementary,
++  b: PreparedElementary,
++): {
++  equal: boolean | undefined;
++  proof: 'elementary-identity' | 'exact-counterexample' | 'none';
++} {
++  if (a.variable !== b.variable || a.kind !== b.kind)
++    return { equal: undefined, proof: 'none' };
++  // Rebox detached exact forms in ONE fresh scope: boxed symbol definitions
++  // from separate preparations must never be compared by object identity.
++  const ce = new ComputeEngine();
++  ce.iterationLimit = 1024;
++  ce.recursionLimit = 64;
++  ce.declare(a.variable, 'real');
++  if (a.kind === 'elementary-positive')
++    ce.assume(ce.box(['Greater', a.variable, 0]));
++  if (ce.box(a.normal.json).isSame(ce.box(b.normal.json)))
++    return { equal: true, proof: 'elementary-identity' };
++  for (const point of a.kind === 'geometric-expression'
++    ? [0, 1, 2, 3]
++    : [1, 2, 3, 5]) {
++    const prepare = (e: Expression) =>
++      prepareNumeric(
++        e
++          .subs({ [a.variable]: point }, { canonical: false })
++          .toLatex({
++            digitGroup: 0,
++            invisibleMultiply: '\\cdot',
++            multiply: '\\cdot',
++          }),
++        {},
++        {},
++        '/counterexample',
++        false,
++      );
++    const aa = prepare(a.normal),
++      bb = prepare(b.normal);
++    if (aa.ok && bb.ok && compareNumeric(aa.value, bb.value).equal === false)
++      return { equal: false, proof: 'exact-counterexample' };
++  }
++  return { equal: undefined, proof: 'none' };
++}
+diff --git a/src/math/input.ts b/src/math/input.ts
+index e03bc59..49e16cb 100644
+--- a/src/math/input.ts
++++ b/src/math/input.ts
+@@ -270,7 +270,10 @@ function parseInput<
+     if (
+       !commands.has(command) &&
+       !(display && displayCommands.has(command)) &&
+-      !((presentation || numeric) && functionCommands.has(command)) &&
++      !(
++        (presentation || numeric || collection) &&
++        functionCommands.has(command)
++      ) &&
+       !(presentation && ['lim', 'to', 'rightarrow'].includes(command)) &&
+       !(algebra && ['le', 'leq', 'ge', 'geq', 'ne', 'neq'].includes(command)) &&
+       !(
+@@ -282,6 +285,8 @@ function parseInput<
+           'rbrace',
+           'lbrack',
+           'rbrack',
++          'lparen',
++          'rparen',
+           'cup',
+           'emptyset',
+           'varnothing',
+@@ -334,10 +339,15 @@ function parseInput<
+         [']', '[', true, true],
+       ] as const;
+       for (const [open, close, leftOpen, rightOpen] of brackets)
+-        for (const opening of [open, open === '[' ? '\\lbrack' : '\\rbrack'])
++        for (const opening of [
++          open,
++          open === '[' ? '\\lbrack' : '\\rbrack',
++          ...(leftOpen ? ['\\lparen'] : []),
++        ])
+           for (const closing of [
+             close,
+             close === '[' ? '\\lbrack' : '\\rbrack',
++            ...(rightOpen ? ['\\rparen'] : []),
+           ])
+             ce.latexSyntax?.addEntries?.([
+               {
+@@ -519,7 +529,10 @@ function parseInput<
+           typeof head !== 'string' ||
+           (!operators.has(head) &&
+             !(display && displayOperators.has(head)) &&
+-            !((presentation || numeric) && functionOperators.has(head)) &&
++            !(
++              (presentation || numeric || collection) &&
++              functionOperators.has(head)
++            ) &&
+             !(
+               algebra &&
+               [
+diff --git a/src/math/numeric.ts b/src/math/numeric.ts
+index 4b7ae21..d839924 100644
+--- a/src/math/numeric.ts
++++ b/src/math/numeric.ts
+@@ -316,6 +316,37 @@ export function prepareNumeric(
+         if (node[0] === 'Delimiter') return signOf(node[1]!);
+         if (node[0] === 'Exp') return 1;
+         if (node[0] === 'Power' && signOf(node[1]!) === 1) return 1;
++        if (node[0] === 'Sqrt') {
++          const s = signOf(node[1]!);
++          if (s === 0 || s === 1) return s;
++        }
++        if (node[0] === 'Negate') {
++          const s = signOf(node[1]!);
++          if (s !== undefined) return s === 0 ? 0 : s === 1 ? -1 : 1;
++        }
++        if (
++          node[0] === 'Multiply' ||
++          node[0] === 'Divide' ||
++          node[0] === 'Rational'
++        ) {
++          const signs = (node as readonly MathSyntax[])
++            .slice(1)
++            .map((n) => signOf(n));
++          if (signs.every((s) => s !== undefined)) {
++            const product = signs.reduce<number>((a, s) => a * s!, 1);
++            return product === 0 ? 0 : product > 0 ? 1 : -1;
++          }
++        }
++        if (node[0] === 'Add') {
++          const signs = (node as readonly MathSyntax[])
++            .slice(1)
++            .map((n) => signOf(n));
++          if (signs.every((s) => s === 0 || s === 1) && signs.includes(1))
++            return 1;
++          if (signs.every((s) => s === 0 || s === -1) && signs.includes(-1))
++            return -1;
++          if (signs.every((s) => s === 0)) return 0;
++        }
+       }
+       const expression = ce.box(node, { form: 'raw' }).canonical;
+       const exact = exactNumber(expression.evaluate(), true);
+@@ -454,25 +485,35 @@ export function prepareNumeric(
+       }
+       if (head === 'Power' || head === 'Square') {
+         const base = ce.box(args[0]!, { form: 'raw' }).canonical;
+-        const rationalExponent =
+-          head === 'Power' && base.json === 'ExponentialE'
+-            ? ce.box(args[1]!).evaluate()
+-            : undefined;
+-        const rationalValue = rationalExponent?.toRational()
+-          ? exactNumber(rationalExponent, true)
+-          : undefined;
++        // e^u and exp(u) share the same admitted closed real argument. Raw
++        // descendants have already been checked, including every inner domain.
+         const exponentialPower =
+-          rationalValue !== undefined &&
+-          [0, 1].includes(exactOrder(rationalValue, -16) ?? -2) &&
+-          [-1, 0].includes(exactOrder(rationalValue, 16) ?? 2);
++          head === 'Power' && base.json === 'ExponentialE';
+         const e =
+           head === 'Square'
+             ? 2
+             : exactNumber(ce.box(args[1]!).evaluate(), true);
+         const exponent =
+           typeof e === 'number' ? e : e === undefined ? undefined : e.toJSON();
++        const half =
++          head === 'Power'
++            ? ce.box(args[1]!).evaluate().toRational()
++            : undefined;
++        const halfPower = half?.[1] === 2 && Math.abs(half[0]) === 1;
++        if (halfPower) {
++          const sign = signOf(args[0]!);
++          if (sign === -1 || (sign === 0 && half![0] < 0))
++            fail(
++              'undefined-expression',
++              p,
++              'The real half-power domain is invalid.',
++            );
++          if (sign === undefined)
++            fail('not-calculable', p, 'The half-power domain is not proved.');
++        }
+         if (
+           !exponentialPower &&
++          !halfPower &&
+           (typeof exponent !== 'number' ||
+             !Number.isInteger(exponent) ||
+             Math.abs(exponent) > 16)
+@@ -484,6 +525,7 @@ export function prepareNumeric(
+           );
+         if (
+           !exponentialPower &&
++          !halfPower &&
+           typeof exponent === 'number' &&
+           exponent <= 0
+         ) {
+@@ -514,7 +556,17 @@ export function prepareNumeric(
+     const exact = exactNumber(evaluated, true);
+     const expression = exactStructure(evaluated) ? evaluated : canonical;
+     const display = expression;
+-    if (!display.isValid || !display.latex || display.latex.length > 4096)
++    const displayLatex = display.toLatex({
++      digitGroup: 0,
++      // Cortex may evaluate an admitted e^(p/q) into an nth root of e.
++      // Serialize that exact representation as a power, which stays inside
++      // the original admission; arbitrary nth-root inputs remain unsupported.
++      rootStyle: (node: MathSyntax) =>
++        Array.isArray(node) && node[0] === 'Root' && node[1] === 'ExponentialE'
++          ? 'quotient'
++          : 'radical',
++    });
++    if (!display.isValid || !displayLatex || displayLatex.length > 4096)
+       fail(
+         'substitution-failed',
+         path,
+@@ -528,7 +580,7 @@ export function prepareNumeric(
+           source,
+           syntax: parsed.syntax,
+           substituted: raw,
+-          displayLatex: display.latex,
++          displayLatex,
+         },
+         expression,
+         ...(exact === undefined ? {} : { exact }),
+diff --git a/src/math/substitution.ts b/src/math/substitution.ts
+index f6e7d47..1e9e204 100644
+--- a/src/math/substitution.ts
++++ b/src/math/substitution.ts
+@@ -154,9 +154,17 @@ export function explicitProducts(
+           'Cos',
+           'Tan',
+         ].includes(String(node[0])) ||
+-          (node[0] === 'Delimiter' &&
+-            node.length === 2 &&
+-            namedFunctionFactor(node[1]!)));
++          ([
++            'Delimiter',
++            'Add',
++            'Subtract',
++            'Negate',
++            'Multiply',
++            'Divide',
++          ].includes(String(node[0])) &&
++            (node as readonly MathSyntax[])
++              .slice(1)
++              .some((child) => namedFunctionFactor(child))));
+       // A trailing variable does not disambiguate a mixed number prefix such as 1\frac{1}{2}x.
+       for (let i = 1; i < factors.length; i++) {
+         const a = factors[i - 1]!,
+@@ -482,7 +490,8 @@ export function instantiateMath(
+     const display = substituted.canonical.evaluate();
+     if (!display.isValid)
+       fail('substitution-failed', path, 'Unable to produce a valid display.');
+-    const displayLatex = display.latex;
++    // Generated answers must roundtrip through the unchanged numeric admission.
++    const displayLatex = display.toLatex({ digitGroup: 0 });
+     if (!displayLatex || displayLatex.length > 4096)
+       fail('limit', path, 'Display exceeds the text budget.');
+     return {
+diff --git a/tests/canonical.test.ts b/tests/canonical.test.ts
+index c408ac2..900e256 100644
+--- a/tests/canonical.test.ts
++++ b/tests/canonical.test.ts
+@@ -8,7 +8,6 @@ import {
+ } from 'novlearn-exercise-engine';
+ import type { GenerateVariablesOptions } from 'novlearn-exercise-engine';
+ import reference from './fixtures/canonical/reference-vectors.json' with { type: 'json' };
+-import packageJson from '../package.json' with { type: 'json' };
+ 
+ describe('canonical contract and reference vectors', () => {
+   it.each(reference.vectors)(
+@@ -24,7 +23,7 @@ describe('canonical contract and reference vectors', () => {
+         }),
+       ).toEqual(result);
+       if (!generated.ok) throw new Error('Reference generation failed');
+-      expect(generated.replay.engineVersion).toBe(packageJson.version);
++      expect(generated.replay.engineVersion).toBe('0.1.0');
+       const { a, b, c, d, f, g, h } = generated.values;
+       if (
+         a?.kind !== 'integer' ||
+diff --git a/tests/catalogue-elementary.test.ts b/tests/catalogue-elementary.test.ts
+new file mode 100644
+index 0000000..e995770
+--- /dev/null
++++ b/tests/catalogue-elementary.test.ts
+@@ -0,0 +1,202 @@
++import { describe, it, expect } from 'vitest';
++import {
++  instantiateExercise,
++  gradeAnswer,
++  projectPublicInstance,
++} from '../src/index.js';
++import type { ExerciseDefinition, ExerciseInstance } from '../src/index.js';
++
++function fixture(
++  source: string,
++  kind:
++    | 'geometric-expression'
++    | 'expression'
++    | 'elementary-positive'
++    | 'real'
++    | 'set'
++    | 'intervals' = 'elementary-positive',
++): ExerciseDefinition {
++  const algebra =
++    kind === 'geometric-expression' ||
++    kind === 'elementary-positive' ||
++    kind === 'expression';
++  return {
++    schemaVersion: 5,
++    kind: 'composed',
++    id: 'synthetic-catalogue',
++    revision: '1',
++    title: 'Synthetic mathematical verification',
++    generation: {
++      schemaVersion: 5,
++      definitions: [],
++      constraints: [],
++      maxAttempts: 8,
++      maxDraws: 64,
++    },
++    variables: algebra ? [{ name: 'x', domain: 'real' }] : [],
++    elements: [
++      {
++        id: 'q',
++        type: 'question',
++        text: 'Donner la réponse exacte.',
++        points: 1,
++        response: {
++          format: 'latex',
++          kind,
++          ...(algebra ? { variable: 'x' } : {}),
++        },
++        policy: {
++          domain: kind === 'expression' ? 'polynomial' : kind,
++          form: 'value-only',
++        },
++        expectedLatex: source,
++      },
++    ],
++  };
++}
++function instance(
++  source: string,
++  kind: Parameters<typeof fixture>[1] = 'elementary-positive',
++): ExerciseInstance {
++  const result = instantiateExercise(fixture(source, kind), {
++    seed: 42,
++    instanceId: 'synthetic-instance',
++  });
++  expect(result.ok, result.ok ? '' : JSON.stringify(result.diagnostics)).toBe(
++    true,
++  );
++  if (!result.ok) throw new Error('Instantiation failed');
++  return result.value;
++}
++const grade = (i: ExerciseInstance, source: string) =>
++  gradeAnswer(i, {
++    schemaVersion: 5,
++    instanceId: i.instanceId,
++    questionId: 'q',
++    answer: { format: 'latex', source },
++  });
++describe('catalogue extension: exact identity and domain proofs', () => {
++  it.each([
++    String.raw`3\cdot2^x`,
++    String.raw`2^x\cdot3`,
++    String.raw`3\cdot2^{x+0}`,
++  ])('accepts a geometric identity: %s', (answer) => {
++    expect(
++      grade(instance(String.raw`3\cdot2^x`, 'geometric-expression'), answer)
++        .state,
++    ).toBe('correct');
++  });
++  it('rejects an incorrect geometric coefficient with an exact integer counterexample', () => {
++    const verdict = grade(
++      instance(String.raw`3\cdot2^x`, 'geometric-expression'),
++      String.raw`4\cdot2^x`,
++    );
++    expect(verdict.state).toBe('incorrect');
++    expect(verdict.proof).toBe('exact-counterexample');
++  });
++  it('never turns matching sample points into an identity', () => {
++    const verdict = grade(
++      instance(String.raw`3\cdot2^x`, 'geometric-expression'),
++      String.raw`3\cdot2^x+x(x-1)(x-2)(x-3)`,
++    );
++    expect(verdict.state).toBe('indeterminate');
++  });
++  it('rejects a displaced fractional-base geometric sequence exactly', () => {
++    const verdict = grade(
++      instance(String.raw`8(1/4)^x`, 'geometric-expression'),
++      String.raw`8(1/4)^x+1`,
++    );
++    expect(verdict.state).toBe('incorrect');
++    expect(verdict.proof).toBe('exact-counterexample');
++  });
++  it.each([
++    String.raw`3\cdot2^x+\frac{x-1}{x-1}-1`,
++    String.raw`3\cdot2^x+\frac{0}{x}`,
++  ])('refuses cancellation of a real-domain hole: %s', (source) => {
++    expect(
++      grade(instance(String.raw`3\cdot2^x`, 'geometric-expression'), source)
++        .state,
++    ).not.toBe('correct');
++  });
++  it.each([String.raw`x^{-1/2}`, String.raw`\frac1{\sqrt{x}}`])(
++    'accepts positive-variable radicals: %s',
++    (source) => {
++      expect(grade(instance(String.raw`\frac1{\sqrt{x}}`), source).state).toBe(
++        'correct',
++      );
++    },
++  );
++  it('rejects a different inverse power exactly', () => {
++    expect(
++      grade(instance(String.raw`\frac1{\sqrt{x}}`), String.raw`\frac1x`).state,
++    ).toBe('incorrect');
++  });
++  it('roundtrips a polynomial with an ungrouped large coefficient', () => {
++    const i = instance('2600+23x', 'expression');
++    const q = i.elements.find((e) => e.type === 'question')!;
++    if (q.type !== 'question' || q.expected.kind === 'text')
++      throw Error('Expected mathematical question');
++    expect(q.expected.math.displayLatex).not.toContain('\\,');
++    expect(grade(i, q.expected.math.displayLatex).state).toBe('correct');
++  });
++  it('accepts a distributed polynomial-logarithm identity', () => {
++    expect(
++      grade(instance(String.raw`x^2(2\ln(x)+1)`), String.raw`2x^2\ln(x)+x^2`)
++        .state,
++    ).toBe('correct');
++  });
++  it('rejects an incorrect polynomial-logarithm identity', () => {
++    expect(
++      grade(instance(String.raw`x^2(2\ln(x)+1)`), String.raw`2x^2\ln(x)-x^2`)
++        .state,
++    ).toBe('incorrect');
++  });
++  it.each([
++    String.raw`\ln(-x)`,
++    String.raw`\frac{x-1}{x-1}`,
++    String.raw`\sqrt{x-1}`,
++  ])('refuses a source outside the whole positive domain: %s', (source) => {
++    expect(grade(instance('1'), source).state).not.toBe('correct');
++  });
++  it('keeps empty inputs invalid and private expected data out of projections', () => {
++    const i = instance(String.raw`\frac1{\sqrt{x}}`);
++    expect(grade(i, '').state).toBe('invalid');
++    expect(JSON.stringify(projectPublicInstance(i))).not.toMatch(
++      /expected|policy|generation|elementary-identity/,
++    );
++  });
++  it.each([
++    String.raw`\sqrt{2+\sqrt2}`,
++    String.raw`e^{20}`,
++    String.raw`e^{-1/4}`,
++    String.raw`e^{-1/5}`,
++    String.raw`\frac{-3+\sqrt{9+4e^8}}{2}`,
++  ])('prepares and self-grades a closed exact expression: %s', (source) => {
++    const i = instance(source, 'real');
++    expect(grade(i, source).state).toBe('correct');
++    const q = i.elements.find((e) => e.type === 'question')!;
++    if (q.type !== 'question' || q.expected.kind === 'text')
++      throw Error('Expected mathematics');
++    expect(grade(i, q.expected.math.displayLatex).state).toBe('correct');
++  });
++  it.each([
++    String.raw`]\frac{\ln3-\ln2}{-2};+\infty[`,
++    String.raw`[\sqrt{5/28};+\infty[`,
++    String.raw`]\frac{\ln(11/4-1)-\ln7}{-5};+\infty[`,
++    String.raw`\left\{\ln2;\exp(3/2)\right\}`,
++  ])('supports elementary collection members: %s', (source) => {
++    const kind = source.startsWith(String.raw`\left\{`) ? 'set' : 'intervals';
++    expect(grade(instance(source, kind), source).state).toBe('correct');
++  });
++  it.each([String.raw`\left\{\ln(-2)\right\}`, String.raw`]\ln0;+\infty[`])(
++    'rejects an invalid closed logarithm domain: %s',
++    (source) => {
++      expect(
++        instantiateExercise(
++          fixture(source, source.startsWith(']') ? 'intervals' : 'set'),
++          { seed: 42, instanceId: 'bad' },
++        ).ok,
++      ).toBe(false);
++    },
++  );
++});
+diff --git a/tests/generation.test.ts b/tests/generation.test.ts
+index f3aef9d..49e9ac3 100644
+--- a/tests/generation.test.ts
++++ b/tests/generation.test.ts
+@@ -12,7 +12,6 @@ import type {
+ } from 'novlearn-exercise-engine';
+ import { sampleIndex, wordStream } from '../src/generation/random.js';
+ import fixture from './fixtures/contracts/rational-minimum.definition.json' with { type: 'json' };
+-import packageJson from '../package.json' with { type: 'json' };
+ 
+ const integer = (
+   overrides: Partial<IntegerVariableDefinition> = {},
+@@ -88,7 +87,7 @@ describe('generation replay and word mapping', () => {
+         computed: [],
+         replay: {
+           attempts: 1,
+-          engineVersion: packageJson.version,
++          engineVersion: '0.1.0',
+           generationVersion: 'mulberry32-rejection-v1',
+           seed: String(seed),
+           draws: 5,
+diff --git a/tests/grading.test.ts b/tests/grading.test.ts
+index 3a8a03d..ccf84c9 100644
+--- a/tests/grading.test.ts
++++ b/tests/grading.test.ts
+@@ -242,7 +242,6 @@ describe('M3 domains and five result states', () => {
+     'x',
+     '\\sin(1)',
+     '\\sqrt[3]{2}',
+-    '2^{1/2}',
+     '0.1234567',
+     '1000000000+1',
+     '2^17',
+diff --git a/tests/log-affine.test.ts b/tests/log-affine.test.ts
+index 763883d..8678413 100644
+--- a/tests/log-affine.test.ts
++++ b/tests/log-affine.test.ts
+@@ -273,20 +273,22 @@ describe('power-of-e form preserves value and original presentation separately',
+       form: 'nonconforming',
+     });
+   }, 20000);
+-  for (const source of ['e^{17/2}', 'e^{-16}', 'e^{16}'])
+-    it(
+-      `admits bounded exponent ${source}`,
+-      () => expect(numeric(source).ok).toBe(true),
+-      20000,
+-    );
+   for (const source of [
++    'e^{17/2}',
++    'e^{-16}',
++    'e^{16}',
+     'e^{17}',
+     'e^{-17}',
+     'e^{\\pi}',
+     '2^{1/2}',
+-    'e^{0/0}',
+     'e^{\\sqrt{2}}',
+   ])
++    it(
++      `admits an exact closed real exponent or square root ${source}`,
++      () => expect(numeric(source).ok).toBe(true),
++      20000,
++    );
++  for (const source of ['e^{0/0}', '2^{1/3}', '2^{17}', '(-2)^{1/2}'])
+     it(
+       `refuses unsupported expected exponent ${source}`,
+       () => expect(numeric(source).ok).toBe(false),
+diff --git a/tests/numeric-display-roundtrip.test.ts b/tests/numeric-display-roundtrip.test.ts
+new file mode 100644
+index 0000000..d6efb87
+--- /dev/null
++++ b/tests/numeric-display-roundtrip.test.ts
+@@ -0,0 +1,71 @@
++import { expect, it } from 'vitest';
++import {
++  instantiateExercise,
++  gradeAnswer,
++  projectPublicInstance,
++} from 'novlearn-exercise-engine';
++import type { ExerciseDefinition } from 'novlearn-exercise-engine';
++
++const definition = (
++  value: string,
++  kind: 'rational' | 'real' = 'rational',
++): ExerciseDefinition => ({
++  schemaVersion: 5,
++  kind: 'composed',
++  id: 'numeric-display-roundtrip',
++  revision: '1',
++  title: 'Numeric display roundtrip',
++  generation: {
++    schemaVersion: 5,
++    definitions: [],
++    constraints: [],
++    maxAttempts: 4,
++    maxDraws: 16,
++  },
++  variables: [],
++  elements: [
++    {
++      id: 'q',
++      type: 'question',
++      text: 'Valeur',
++      points: 1,
++      response: { format: 'latex', kind },
++      expectedLatex: value,
++      policy: { domain: kind, form: 'value-only' },
++    },
++  ],
++});
++it.each(['1287.5', '1326.125', '1000000', '-12345.125'])(
++  'numeric expected display %s is admitted without relaxing grouped-input guards',
++  (value) => {
++    for (const kind of ['rational', 'real'] as const) {
++      const source = definition(value, kind);
++      const run = instantiateExercise(source, {
++        seed: 42,
++        instanceId: 'roundtrip',
++      });
++      expect(run.ok).toBe(true);
++      if (!run.ok) throw Error(JSON.stringify(run));
++      const question = run.value.elements[0]!;
++      if (question.type !== 'question' || question.expected.kind === 'text')
++        throw Error('Expected math');
++      const display = question.expected.math.displayLatex;
++      expect(display).not.toContain('\\,');
++      expect(question.expected.math.source).toBe(value);
++      const grade = (text: string) =>
++        gradeAnswer(run.value, {
++          schemaVersion: 5,
++          instanceId: 'roundtrip',
++          questionId: 'q',
++          answer: { format: 'latex', source: text },
++        });
++      expect(grade(display).state).toBe('correct');
++      expect(grade('0').state).toBe('incorrect');
++      expect(grade('1\\,000').state).toBe('indeterminate');
++      expect(
++        instantiateExercise(source, { seed: 42, instanceId: 'roundtrip' }),
++      ).toEqual(run);
++      expect(projectPublicInstance(run.value)).not.toHaveProperty('expected');
++    }
++  },
++);
+-- 
+2.55.0.windows.5
+

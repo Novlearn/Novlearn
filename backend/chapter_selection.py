@@ -6,6 +6,8 @@ import logging
 import random
 from typing import Any
 
+from exercise_availability import available_exercises
+
 from settings.competence_settings import (
     get_competences,
     get_chapters_with_competences,
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def _get_chapters_with_exercises(supabase_client: Any) -> set[str]:
     """Return set of chapter names that have at least one exercise in DB."""
-    r = supabase_client.table("exercises").select("chapter").execute()
+    r = available_exercises(supabase_client, "chapter").execute()
     chapters = set()
     for row in (r.data or []):
         ch = (row.get("chapter") or "").strip()

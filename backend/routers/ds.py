@@ -10,7 +10,6 @@ from auth import get_supabase_client, verify_token
 from ds import (
     initialiser_scores_ds,
     recommander_exercice_ds,
-    soumettre_reponse_ds,
 )
 from schemas import CreateDSRequest, SubmitDSAnswerRequest
 
@@ -210,11 +209,12 @@ async def ds_submit(
     if not r.data:
         raise HTTPException(status_code=404, detail="DS introuvable")
 
-    soumettre_reponse_ds(
-        supabase,
-        ds_id=ds_id,
-        competence_ids=body.competence_ids,
-        is_correct=body.is_correct,
-        difficulty=body.difficulty,
-    )
-    return {"message": "Réponse enregistrée"}
+    if body.engine_session_id:
+        try:
+            result = supabase.rpc("engine_apply_ds_result", {
+                "p_id": str(body.engine_session_id), "p_owner": user_id, "p_ds": ds_id,
+            }).execute()
+            return result.data
+        except Exception:
+            raise HTTPException(status_code=409, detail="Résultat Engine indisponible pour ce DS")
+    raise HTTPException(status_code=400, detail="Une correction Engine est requise")

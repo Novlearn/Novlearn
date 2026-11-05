@@ -121,14 +121,19 @@ async def chapter_test_next(
     try:
         supabase = get_supabase_client()
         user_id = user["user_id"]
-        result = get_next_test_exercise(
-            supabase, user_id, body.chapter, body.last_success
-        )
+        success = body.last_success
+        if body.engine_session_id:
+            # Migration 019 retired placement state. Do not resurrect it, or
+            # accept a browser boolean to score a canonical Engine exercise.
+            raise HTTPException(status_code=410, detail="Le positionnement a été retiré")
+        result = get_next_test_exercise(supabase, user_id, body.chapter, success)
         if result is None:
             return JSONResponse(
                 content={"completed": True, "chapter": body.chapter}
             )
         return JSONResponse(content=result)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("chapter_test_next error: %s", e)
         raise HTTPException(

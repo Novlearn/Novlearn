@@ -8,6 +8,8 @@ import { Layout } from "../../../components/Layout";
 import { useAuth } from "../../../contexts/AuthContext";
 import { dsApi, DSRecommendation } from "../../../lib/api";
 
+const DIFFICULTY_LABEL: Record<string, string> = {easy:"Facile",medium:"Moyen",hard:"Difficile"};
+
 function DSExercicesPage() {
   const params = useParams();
   const dsId = params.id as string;
@@ -52,21 +54,18 @@ function DSExercicesPage() {
   }, [dsId, user, authLoading]);
 
   const handleNextClick = useCallback(
-    async (hasErrors: boolean) => {
+    async (_hasErrors: boolean,engineSessionId?:string) => {
       const rec = currentRecommendation.current;
       if (!rec) return;
 
       // Soumet la réponse au backend DS
       try {
-        await dsApi.submitDSAnswer(
-          dsId,
-          String(rec.exercise_id),
-          rec.competences,
-          !hasErrors,
-          rec.difficulty,
-        );
+        if(!engineSessionId)throw new Error("Une correction Engine est requise.");
+        await dsApi.submitDSAnswer(dsId,engineSessionId);
       } catch (e) {
         console.error("[DS Exercices] submitDSAnswer error:", e);
+        setError("La réponse n’a pas pu être enregistrée. Réessayez.");
+        throw e;
       }
 
       // Charge la prochaine recommandation
@@ -195,6 +194,7 @@ function DSExercicesPage() {
             )
           ) : recommendation ? (
             <ExerciseLoader
+              dsId={dsId}
               key={`ds-exo-${recommendation.exercise_id}-${nextKey}`}
               exerciseId={String(recommendation.exercise_id)}
               competenceId={recommendation.competence_id}
@@ -220,7 +220,7 @@ function DSExercicesPage() {
               className="text-violet-200 text-xs leading-relaxed"
               style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 500 }}
             >
-              {currentExerciseTitle || "Exercice"} · {recommendation.difficulty} · Recommandation DS
+              {currentExerciseTitle || "Exercice"} · {DIFFICULTY_LABEL[recommendation.difficulty] ?? recommendation.difficulty} · Recommandation DS
             </p>
           </div>
         </div>

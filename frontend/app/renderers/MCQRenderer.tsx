@@ -10,9 +10,13 @@ import {
 import React, { useMemo, useState } from "react";
 import MathText from "../components/ui/MathText";
 import { MCQContent, RendererProps } from "../types/exercise";
+import type { GradeQuestion, QuestionResult } from "../lib/engine/learnerTypes";
 
 interface MCQRendererProps extends RendererProps<MCQContent> {
   onSubmit?: (selectedIndex: number, isCorrect: boolean) => void;
+  gradeAnswer?: GradeQuestion;
+  optionIds?: string[];
+  initialResult?: QuestionResult;
 }
 
 // Fonction de mélange Fisher-Yates
@@ -30,23 +34,33 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
   content,
   variables,
   onSubmit,
+  gradeAnswer,optionIds,initialResult,
 }) => {
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
-    new Set()
-  );
-  const [isFinished, setIsFinished] = useState(false);
-  const [status, setStatus] = useState<"idle" | "correct" | "incorrect">("idle");
+  const [isFinished, setIsFinished] = useState(initialResult?.finished??false);
+  const [serverResult,setServerResult]=useState(initialResult);
+  const [pending,setPending]=useState(false);
+  const [correctionError,setCorrectionError]=useState<string|null>(null);
+  const [status, setStatus] = useState<"idle" | "correct" | "incorrect">(initialResult?.state==="correct"?"correct":initialResult?.state==="incorrect"?"incorrect":"idle");
   const [showExplanation, setShowExplanation] = useState(false);
+  const explanation=serverResult?.reveal?.explanation;
 
   const isMultipleChoice = content?.multipleChoice ?? false;
+  const optionKey=optionIds?.join(",");
 
   // Mélanger les options une seule fois au montage
   const shuffledOptions = useMemo(() => {
-    return shuffleArray(content?.options || []);
-  }, [content?.options]);
+    return shuffleArray((content?.options || []).map((o,i)=>({...o,optionId:optionIds?.[i]})));
+  // Option identity survives parent updates; display shuffling never changes it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content?.options,optionKey]);
+  const [selectedIndices,setSelectedIndices]=useState<Set<number>>(()=>{
+    const answer=initialResult?.answer;
+    return new Set(answer?.format==="selection"?shuffledOptions.flatMap((o,i)=>o.optionId&&answer.optionIds.includes(o.optionId)?[i]:[]):[]);
+  });
+  const correctOption=(option:typeof shuffledOptions[number])=>!!option.optionId&&!!serverResult?.reveal?.optionIds?.includes(option.optionId);
 
   const handleSelect = (index: number) => {
-    if (isFinished) return;
+    if (isFinished || pending) return;
 
     setSelectedIndices((prev) => {
       const newSet = new Set(prev);
@@ -64,34 +78,27 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
     });
   };
 
-  const handleValidate = () => {
-    if (selectedIndices.size === 0 || isFinished) return;
+  const handleValidate = async () => {
+    if (selectedIndices.size === 0 || isFinished || pending) return;
+    if(gradeAnswer) {
+      setPending(true);setCorrectionError(null);
+      try {
+        const result=await gradeAnswer({format:"selection",optionIds:[...selectedIndices].map(i=>shuffledOptions[i].optionId!)});
+        setServerResult(result);
+        if(result.state!=="correct"&&result.state!=="incorrect") {setCorrectionError("La correction ne peut pas conclure. Réessayez.");return;}
+        setStatus(result.state);setIsFinished(result.finished);setShowExplanation(result.finished);
+        if(result.finished) onSubmit?.([...selectedIndices][0],result.state==="correct");
+      }catch {setCorrectionError("La correction est indisponible. Réessayez.");}finally {setPending(false);}
+      return;
+    }
 
-    // Correct = toutes les bonnes réponses sélectionnées ET aucune mauvaise
-    const correctIndices = new Set(
-      shuffledOptions
-        .map((opt, idx) => (opt.correct ? idx : -1))
-        .filter((idx) => idx !== -1)
-    );
-
-    const allCorrectSelected = [...correctIndices].every((idx) =>
-      selectedIndices.has(idx)
-    );
-    const noIncorrectSelected = [...selectedIndices].every(
-      (idx) => shuffledOptions[idx].correct
-    );
-    const isCorrect = allCorrectSelected && noIncorrectSelected;
-
-    setStatus(isCorrect ? "correct" : "incorrect");
-    setIsFinished(true);
-    setShowExplanation(true); // Afficher l'explication automatiquement à la fin
-    onSubmit?.([...selectedIndices][0], isCorrect);
+    setCorrectionError("La correction est indisponible. Réessayez.");
   };
 
   // Récupérer les bonnes réponses pour l'affichage de la correction
   const correctOptionTexts = useMemo(() => {
-    return shuffledOptions.filter((opt) => opt.correct).map((opt) => opt.text);
-  }, [shuffledOptions]);
+    return shuffledOptions.filter((opt) => !!opt.optionId && !!serverResult?.reveal?.optionIds?.includes(opt.optionId)).map((opt) => opt.text);
+  }, [shuffledOptions,serverResult]);
 
   // Si pas de contenu valide
   if (!content || !shuffledOptions.length) {
@@ -146,7 +153,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
         <div className="space-y-3">
           {shuffledOptions.map((option, index) => {
             const isSelected = selectedIndices.has(index);
-            const isCorrect = option.correct;
+            const isCorrect = correctOption(option);
             
             // Calcul du style dynamique
             let containerStyle = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
@@ -177,7 +184,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
               <button
                 key={index}
                 onClick={() => handleSelect(index)}
-                disabled={isFinished}
+                disabled={isFinished || pending}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center gap-4 group ${containerStyle}`}
               >
                 <span
@@ -203,7 +210,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
         {!isFinished && (
             <button
               onClick={handleValidate}
-              disabled={selectedIndices.size === 0}
+              disabled={selectedIndices.size === 0 || pending}
               className={`px-6 py-2.5 text-white font-medium rounded-lg transition-all shadow-md active:scale-95 w-full sm:w-auto
                 ${
                     selectedIndices.size === 0
@@ -216,6 +223,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
         )}
 
         {/* --- RÉSULTAT FINAL --- */}
+        {correctionError && <p role="status" className="text-orange-700">{correctionError}</p>}
         {isFinished && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div
@@ -253,7 +261,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
             )}
 
             {/* --- EXPLICATION --- */}
-            {content.explanation && (
+            {explanation && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -284,7 +292,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
                         </p>
                         <div className="text-slate-800 text-base leading-relaxed">
                           <MathText
-                            content={content.explanation}
+                            content={explanation}
                             variables={variables}
                           />
                         </div>

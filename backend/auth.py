@@ -1,7 +1,7 @@
 """
 Authentication utilities for Novlearn API
 """
-from fastapi import HTTPException, Header
+from fastapi import HTTPException, Header, Request
 from supabase import create_client, Client
 from config import settings
 import logging
@@ -41,11 +41,36 @@ def _get_supabase_client() -> Client:
     return _supabase_client
 
 
-async def verify_token(authorization: str = Header(None)) -> dict:
+async def verify_token(authorization: str = Header(None), request: Request = None) -> dict:
     """
     Verify JWT token from Supabase Auth
     Returns user data if valid, raises HTTPException if invalid
     """
+    if not authorization and request is not None:
+        # The existing HttpOnly Supabase session may be shared by the local
+        # Staging Admin. Decoding extracts a token; get_user still authenticates it.
+        import base64
+        import json
+        from urllib.parse import urlparse
+        ref = urlparse(settings.supabase_url).hostname.split(".")[0]
+        prefix = f"sb-{ref}-auth-token"
+        raw = request.cookies.get(prefix)
+        if raw is None:
+            chunks = []
+            index = 0
+            while f"{prefix}.{index}" in request.cookies:
+                chunks.append(request.cookies[f"{prefix}.{index}"])
+                index += 1
+            raw = "".join(chunks)
+        try:
+            if raw.startswith("base64-"):
+                raw = base64.urlsafe_b64decode(raw[7:] + "=" * (-len(raw[7:]) % 4)).decode()
+            value = json.loads(raw)
+            token = value.get("access_token") if isinstance(value, dict) else None
+            if isinstance(token, str):
+                authorization = f"Bearer {token}"
+        except (ValueError, TypeError, UnicodeError):
+            pass
     if not authorization:
         logger.warning("Missing authorization header")
         raise HTTPException(status_code=401, detail="Missing authorization header")

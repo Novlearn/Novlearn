@@ -1,5 +1,6 @@
 import { Room, Client } from "colyseus";
 import { DuelState } from "./schema/DuelState";
+import { engineRun, prepareEngineRound } from "../engine";
 import {
   verifySupabaseToken,
   getDuel,
@@ -16,10 +17,10 @@ import {
 } from "../config";
 
 interface SubmitAnswerMsg {
-  elementId: number;
-  answer: string;
-  isCorrect: boolean;
-  timeSpent: number;
+  requestId?:string;
+  instanceId?:string;
+  questionId?:string;
+  rawAnswer?:unknown;
 }
 
 interface PlayerAuth {
@@ -35,6 +36,10 @@ export class DuelRoom extends Room {
   private duelId!: number;
   private currentExercise: ExerciseRow | null = null;
   private currentVariables: Record<string, number> = {};
+  private engineRound:Awaited<ReturnType<typeof prepareEngineRound>>|null=null;
+  private advancing = false;
+  private roundNumber=0;
+  private gradingPlayers=new Set<string>();
   /** Players who solved the current exercise correctly (max 2). */
   private solvedPlayers = new Set<string>();
   private readyPlayers = new Set<string>();
@@ -121,6 +126,8 @@ export class DuelRoom extends Room {
   onDispose() {
     console.log("[DuelRoom] onDispose", { duelId: this.duelId });
     this.clearAllTimers();
+    this.s.phase="finished";
+    this.engineRound=null;
   }
 
   // ─── Game flow ─────────────────────────────────────────────────────────────
@@ -158,31 +165,54 @@ export class DuelRoom extends Room {
   }
 
   private async advanceToNextExercise() {
-    this.clearExerciseTimer();
-    this.clearGraceTimer();
-    this.solvedPlayers.clear();
-    this.skipRequests.clear();
-    await this.loadNextExercise();
-    this.s.exerciseStartedAt = Math.floor(Date.now() / 1000);
-    this.broadcastExercise();
-    this.startExerciseTimer();
+    if (this.advancing || this.s.phase !== "playing") return;
+    this.advancing = true;
+    try {
+      this.engineRound = null;
+      this.clearExerciseTimer();
+      this.clearGraceTimer();
+      this.solvedPlayers.clear();
+      this.skipRequests.clear();
+      await this.loadNextExercise();
+      if (this.s.phase !== "playing") return;
+      this.s.exerciseStartedAt = Math.floor(Date.now() / 1000);
+      this.broadcastExercise();
+      this.startExerciseTimer();
+    } finally {
+      this.advancing = false;
+    }
   }
 
   private async handleSubmitAnswer(client: Client, msg: SubmitAnswerMsg) {
     if (this.s.phase !== "playing") return;
     const auth = client.userData as PlayerAuth;
+    const round=this.engineRound;
+    if (!round) {
+      client.send("answer_result", {requestId:msg.requestId,instanceId:msg.instanceId,state:"error"});
+      return;
+    }
+    let correct = false;
+    if(round) {
+      if(this.gradingPlayers.has(auth.userId)||this.solvedPlayers.has(auth.userId)||msg.instanceId!==round.id||msg.questionId!==round.questionId||typeof msg.requestId!=="string"||msg.requestId.length>80) return;
+      this.gradingPlayers.add(auth.userId);
+      try {
+        const verdict=await engineRun("gradeAnswer",{official:round.official,submission:{schemaVersion:5,instanceId:round.id,questionId:round.questionId,answer:msg.rawAnswer}});
+        if(this.engineRound!==round||this.s.phase!=="playing") return;
+        if(verdict.instanceId!==round.id||verdict.questionId!==round.questionId||!["correct","incorrect","invalid","indeterminate","error"].includes(verdict.state)) throw new Error("Invalid Engine verdict");
+        const q=round.official.elements.find((e:any)=>e.id===round.questionId);
+        const reveal=verdict.state==="correct"?{latex:q?.expected?.math?.displayLatex,texts:q?.expected?.variants}:undefined;
+        if(verdict.state!=="correct"&&verdict.state!=="incorrect") {
+          client.send("answer_result",{requestId:msg.requestId,instanceId:round.id,state:verdict.state});return;
+        }
+        await recordAttempt(this.duelId,auth.userId,1,JSON.stringify(msg.rawAnswer),verdict.state==="correct",Math.max(0,Date.now()-this.s.exerciseStartedAt*1000),round.id);
+        if(this.engineRound!==round||this.s.phase!=="playing") return;
+        client.send("answer_result",{requestId:msg.requestId,instanceId:round.id,state:verdict.state,reveal});
+        correct=verdict.state==="correct";
+      }catch {client.send("answer_result",{requestId:msg.requestId,instanceId:round.id,state:"error"});return;}
+      finally {this.gradingPlayers.delete(auth.userId);}
+    }
 
-    console.log("[DuelRoom] submitAnswer", {
-      userId: auth.userId.slice(0, 8),
-      elementId: msg.elementId,
-      isCorrect: msg.isCorrect,
-    });
-
-    recordAttempt(
-      this.duelId, auth.userId, msg.elementId, msg.answer, msg.isCorrect, msg.timeSpent,
-    ).catch((err) => console.error("[DuelRoom] recordAttempt failed:", err));
-
-    if (!msg.isCorrect) return;
+    if (!correct) return;
     // Already solved by this player for this exercise.
     if (this.solvedPlayers.has(auth.userId)) return;
 
@@ -261,6 +291,8 @@ export class DuelRoom extends Room {
     const { row, variables } = await getRandomExercise();
     this.currentExercise = row;
     this.currentVariables = variables;
+    if(!row.catalog_id)throw new Error("Canonical Engine exercise required");
+    this.engineRound=await prepareEngineRound(row,this.duelId,++this.roundNumber);
     this.solvedPlayers.clear();
     this.skipRequests.clear();
     console.log("[DuelRoom] loadNextExercise", {
@@ -272,20 +304,18 @@ export class DuelRoom extends Room {
   private broadcastExercise() {
     if (!this.currentExercise) return;
     this.broadcast("exercise", {
-      exercise: this.currentExercise,
+      exercise: {...this.currentExercise,content:{variables:[],elements:[]}},
       variables: this.currentVariables,
+      ...(this.engineRound?{instance:this.engineRound.projected}:{}),
     });
   }
 
   private getCorrectAnswerPayload(): { expression: string; elementId: number } | null {
-    if (!this.currentExercise) return null;
-    const qEl = this.currentExercise.content?.elements?.find((el) => el.type === "question");
-    if (!qEl) return null;
-    const content = qEl.content as { answer?: string; correctAnswer?: string };
-    return {
-      expression: content.answer ?? content.correctAnswer ?? "",
-      elementId: qEl.id,
-    };
+    if(this.engineRound) {
+      const q=this.engineRound.official.elements.find((e:any)=>e.id===this.engineRound!.questionId);
+      return {expression:q?.expected?.math?.displayLatex??q?.expected?.variants?.[0]??"",elementId:1};
+    }
+    return null;
   }
 
   private clearExerciseTimer() {

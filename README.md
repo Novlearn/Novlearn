@@ -100,6 +100,8 @@ Voir `duel-server/.env.example`.
 
 ## Base de données
 
+La correction locale de la migration `exercises_claude` est documentée dans [son audit](docs/audits/2026-10-migration-028-exercises-claude.md). Les propositions de versionnement des exercices et de sécurité SQL sont conservées dans `docs/sql-proposals/` et ne sont pas des migrations déployables.
+
 ```bash
 npm run db:push     # applique les migrations sur Supabase
 npm run db:start    # instance Supabase locale
@@ -183,3 +185,7 @@ Projet académique — École Centrale de Lyon (PE69).
 Pour copier les exercices et la taxonomie de production vers le staging : [guide et commandes](docs/catalog-sync.md).
 
 Pour initialiser les deux projets Supabase et configurer Auth, les secrets et Realtime : [guide des environnements](docs/supabase-environments.md).
+# Intégration Engine 0.2.1
+
+Voir le [guide des environnements et de l'intégration](docs/engine-0.2.1-integration.md)
+pour les variables GitHub/Vercel, le host isolé et l'ordre des migrations.

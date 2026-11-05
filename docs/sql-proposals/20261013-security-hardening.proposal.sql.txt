@@ -1,0 +1,31 @@
+-- PLAN DE CORRECTION SQL — non exécutable et non exhaustif.
+-- Les opérations ci-dessous doivent être générées à partir du schéma réconcilié,
+-- par fonction/table, après adaptation des consommateurs et tests sous les rôles réels.
+
+-- 1. exercices : créer d'abord une projection strictement publique des éléments
+-- nécessaires (ID logique, titre, chapitre, difficulté, compéténces, éléments
+-- sans attendus privés). Migrer frontend, FastAPI et duel vers une instance
+-- officielle côté serveur. Ensuite seulement : révoquer SELECT direct sur
+-- exercises.content pour anon/authenticated et fermer les policies ouvertes.
+-- La requête RPC get_random_exercise actuelle ne doit plus retourner row_to_json(e).
+
+-- 2. profiles : remplacer profiles_select_others USING (true) par une projection
+-- sociale minimale. Inventorier frontend classement/amis et duel. Retirer aux
+-- clients la lecture de email, birth_date, role, consent_date et autres attributs
+-- privés. Préserver séparément la lecture complète du seul profil propriétaire.
+-- Ne pas ajouter un grant de table qui réouvre les colonnes privées.
+
+-- 3. SECURITY DEFINER : pour chaque signature listée, revoir son corps, propriétaire,
+-- recherche_path, contrôle d'identité, dépendances, droits directs et hérités.
+-- Les fonctions retenues doivent avoir un search_path fixé/vidé, qualifier les
+-- objets, révoquer EXECUTE de PUBLIC puis accorder uniquement aux rôles utilisés.
+-- Ne pas révoquer en bloc get_my_role/is_guest: les policies actuelles en dépendent.
+
+-- 4. rôles de publication : ne pas réutiliser service_role. Définir un rôle
+-- Postgres distinct dont les SELECT Production passent par des vues statistiques
+-- approuvées et dont l'écriture est limitée à l'opération de promotion sur
+-- exercises et exercise_versions. Vérifier les limites par colonnes, vues,
+-- fonctions, séquences, RLS et memberships effectifs avant provisionnement.
+
+-- À la date de ce dossier, il manque les preuves de réconciliation et le mapping
+-- des consommateurs. Aucune clause GRANT/REVOKE/POLICY distante n'est prête.

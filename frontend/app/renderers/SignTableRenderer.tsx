@@ -3,7 +3,6 @@
 import React from "react";
 import { Latex } from "../components/ui";
 import { RendererProps, SignTableContent } from "../types/exercise";
-import { substituteVariables } from "../utils/math/parsing";
 
 const SignTableRenderer: React.FC<RendererProps<SignTableContent>> = ({
   content,
@@ -21,7 +20,7 @@ const SignTableRenderer: React.FC<RendererProps<SignTableContent>> = ({
             </th>
             {points.map((point, i) => (
               <th key={i} className="border border-gray-300 bg-slate-50 p-2">
-                <Latex>{substituteVariables(point.x, variables)}</Latex>
+                <Latex>{point.x}</Latex>
               </th>
             ))}
           </tr>

@@ -1,12 +1,16 @@
 -- Migration 022 : Correction du schéma chapters + competences
 -- Migration 010 créait chapters avec SERIAL INT + db_aliases TEXT[].
 -- En production la table a été recréée avec UUID + aliases TEXT[].
--- On corrige ici de façon idempotente.
+-- La définition enregistrée avant correction est archivée dans
+-- docs/audits/022_chapters_uuid_and_competences_fix.original.sql.
+-- On corrige ici sans supprimer les chapitres ni leurs associations.
 
 -- ============================================================
--- 1. Recréer chapters avec UUID si la PK est encore INT/SERIAL
+-- 1. Convertir la PK INT/SERIAL en UUID en conservant les lignes et les liens
 -- ============================================================
 DO $$
+DECLARE
+  unmapped_count BIGINT;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -15,22 +19,51 @@ BEGIN
       AND column_name  = 'id'
       AND data_type    = 'integer'
   ) THEN
-    ALTER TABLE IF EXISTS public.competences DROP CONSTRAINT IF EXISTS competences_chapter_id_fkey;
-    DROP TABLE IF EXISTS public.chapters CASCADE;
+    -- Garder une correspondance explicite de chaque ancien ID vers son UUID.
+    ALTER TABLE public.chapters
+      ADD COLUMN id_uuid UUID;
+    UPDATE public.chapters
+      SET id_uuid = extensions.uuid_generate_v4()
+      WHERE id_uuid IS NULL;
 
-    CREATE TABLE public.chapters (
-      id          UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
-      name        TEXT UNIQUE NOT NULL,
-      order_index INT  NOT NULL,
-      aliases     TEXT[] DEFAULT '{}',
-      emoji       TEXT NOT NULL DEFAULT '📚'
-    );
+    -- Remapper toutes les compétences avant de retirer la colonne entière.
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'competences'
+        AND column_name = 'chapter_id'
+        AND data_type = 'integer'
+    ) THEN
+      ALTER TABLE public.competences ADD COLUMN chapter_id_uuid UUID;
+      UPDATE public.competences c
+        SET chapter_id_uuid = ch.id_uuid
+        FROM public.chapters ch
+        WHERE c.chapter_id = ch.id;
 
-    ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
+      SELECT COUNT(*) INTO unmapped_count
+        FROM public.competences
+        WHERE chapter_id_uuid IS NULL;
+      IF unmapped_count > 0 THEN
+        RAISE EXCEPTION
+          '022: % compétence(s) sans chapitre correspondant; conversion annulée',
+          unmapped_count;
+      END IF;
 
-    CREATE POLICY "Lecture publique des chapitres"
-      ON public.chapters FOR SELECT
-      USING (true);
+      ALTER TABLE public.competences
+        DROP CONSTRAINT IF EXISTS competences_chapter_id_fkey;
+      ALTER TABLE public.competences DROP COLUMN chapter_id;
+      ALTER TABLE public.competences RENAME COLUMN chapter_id_uuid TO chapter_id;
+      ALTER TABLE public.competences ALTER COLUMN chapter_id SET NOT NULL;
+    ELSE
+      RAISE EXCEPTION
+        '022: chapters.id est entier mais competences.chapter_id n’est pas entier; mapping non vérifiable';
+    END IF;
+
+    ALTER TABLE public.chapters DROP CONSTRAINT chapters_pkey;
+    ALTER TABLE public.chapters DROP COLUMN id;
+    ALTER TABLE public.chapters RENAME COLUMN id_uuid TO id;
+    ALTER TABLE public.chapters ALTER COLUMN id SET DEFAULT extensions.uuid_generate_v4();
+    ALTER TABLE public.chapters ADD CONSTRAINT chapters_pkey PRIMARY KEY (id);
   END IF;
 END $$;
 
@@ -65,7 +98,7 @@ ON CONFLICT (name) DO UPDATE
       emoji       = EXCLUDED.emoji;
 
 -- ============================================================
--- 3. Corriger competences.chapter_id : INT → UUID (nullable)
+-- 3. Vérifier que chapter_id est UUID et reste obligatoire
 -- ============================================================
 DO $$
 BEGIN
@@ -76,9 +109,11 @@ BEGIN
       AND column_name  = 'chapter_id'
       AND data_type    = 'integer'
   ) THEN
-    ALTER TABLE public.competences DROP CONSTRAINT IF EXISTS competences_chapter_id_fkey;
-    ALTER TABLE public.competences ALTER COLUMN chapter_id TYPE UUID USING NULL;
+    RAISE EXCEPTION
+      '022: competences.chapter_id est entier sans table chapters entière permettant un mapping; conversion annulée';
   END IF;
+
+  ALTER TABLE public.competences ALTER COLUMN chapter_id SET NOT NULL;
 END $$;
 
 -- Recréer la FK vers chapters(id) si absente

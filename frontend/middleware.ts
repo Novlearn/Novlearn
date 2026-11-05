@@ -39,6 +39,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
+  // Next dev can normalize its internal URL to localhost. Keep the isolated
+  // pilot on the operator's 127.0.0.1 origin so Auth cookies and API Origin agree.
+  if (process.env.NODE_ENV === "development" && process.env.NOVLEARN_ENGINE_ENABLED === "true" &&
+      request.headers.get("host") === "127.0.0.1:3000") url.host = "127.0.0.1:3000";
   const path = url.pathname;
 
   // --- LOGIQUE DE PROTECTION DES ROUTES ---

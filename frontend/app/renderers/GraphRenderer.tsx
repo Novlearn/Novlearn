@@ -1,114 +1,15 @@
 "use client";
 
-import { compile as mathCompile } from "mathjs";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GraphContent, RendererProps } from "../types/exercise";
+import { interpolatePlot } from "../utils/graphPresentation";
 import Latex from "../components/ui/Latex";
-import { GraphBound, GraphContent, RendererProps, VariableValues } from "../types/exercise";
-import { evaluate, toMathJsSyntax } from "../utils/math/evaluation";
-import { substituteVariables } from "../utils/math/parsing";
-import { simplifyLatexExpression } from "../utils/math/simplification";
 
 // Rapport hauteur / largeur du graphe (paysage mathématique standard)
 const ASPECT = 2 / 3;
 
-// Bornes par défaut quand toutes les bornes x sont "auto"
-const DEFAULT_X_RANGE = 10;
-
-/** Compile une expression LaTeX/texte en fonction mathjs prête à évaluer.
- *  Renvoie null si l'expression est invalide. */
-const compileExpression = (
-  expr: string,
-  variables: VariableValues,
-): ((x: number) => number) | null => {
-  try {
-    const substituted = substituteVariables(expr, variables);
-    const mathJsExpr = toMathJsSyntax(substituted);
-    const compiled = mathCompile(mathJsExpr);
-    return (x: number) => {
-      try {
-        const result = compiled.evaluate({ x });
-        if (typeof result === "number") return result;
-        if (result && typeof result === "object" && "re" in result) return NaN;
-        return NaN;
-      } catch {
-        return NaN;
-      }
-    };
-  } catch {
-    return null;
-  }
-};
-
-/** Résout une borne. Renvoie null si "auto". */
-const resolveStaticBound = (
-  val: GraphBound,
-  variables: VariableValues,
-): number | null => {
-  if (val === "auto") return null;
-  if (typeof val === "number") return val;
-  const result = evaluate(val, variables);
-  return isFinite(result) ? result : null;
-};
-
-/** Calcule les bornes effectives, en remplissant les "auto" par échantillonnage des fonctions. */
-const computeBounds = (
-  content: GraphContent,
-  compiledFns: Array<(x: number) => number>,
-  variables: VariableValues,
-) => {
-  let xMin = resolveStaticBound(content.xMin, variables);
-  let xMax = resolveStaticBound(content.xMax, variables);
-  let yMin = resolveStaticBound(content.yMin, variables);
-  let yMax = resolveStaticBound(content.yMax, variables);
-
-  // Défauts pour x si auto
-  if (xMin === null && xMax === null) {
-    xMin = -DEFAULT_X_RANGE;
-    xMax = DEFAULT_X_RANGE;
-  } else if (xMin === null && xMax !== null) {
-    xMin = xMax - 2 * DEFAULT_X_RANGE;
-  } else if (xMax === null && xMin !== null) {
-    xMax = xMin + 2 * DEFAULT_X_RANGE;
-  }
-
-  // À ce stade xMin et xMax sont définis
-  if (xMin === null || xMax === null || xMax <= xMin) return null;
-
-  // Auto-fit pour y : échantillonner les fonctions et trouver min/max
-  if (yMin === null || yMax === null) {
-    const samples = 200;
-    let ySamples: number[] = [];
-    for (let i = 0; i <= samples; i++) {
-      const x = xMin + ((xMax - xMin) * i) / samples;
-      for (const fn of compiledFns) {
-        const y = fn(x);
-        if (typeof y === "number" && isFinite(y)) ySamples.push(y);
-      }
-    }
-
-    if (ySamples.length === 0) {
-      // Fallback : pas de valeur exploitable
-      if (yMin === null) yMin = -DEFAULT_X_RANGE;
-      if (yMax === null) yMax = DEFAULT_X_RANGE;
-    } else {
-      // Éliminer les outliers extrêmes (1er et 99e percentile)
-      ySamples.sort((a, b) => a - b);
-      const lo = ySamples[Math.floor(ySamples.length * 0.01)];
-      const hi = ySamples[Math.floor(ySamples.length * 0.99)];
-      const range = Math.max(hi - lo, 1);
-      const margin = range * 0.15;
-      if (yMin === null) yMin = lo - margin;
-      if (yMax === null) yMax = hi + margin;
-    }
-  }
-
-  if (yMin === null || yMax === null || yMax <= yMin) return null;
-  return { xMin, xMax, yMin, yMax };
-};
-
 const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
   content,
-  variables,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const staticRef = useRef<HTMLCanvasElement>(null);
@@ -116,29 +17,14 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  const vars = variables ?? {};
-
-  // ── Compile les fonctions une seule fois par re-rendu (mémoïsé) ──────────
-  const compiledFns = useMemo(
-    () =>
-      (content.functions ?? []).map((fn) => ({
-        compiled: compileExpression(fn.expression, vars),
-        color: fn.color || "#3b82f6",
-        showExpression: fn.showExpression !== false,
-        rawExpression: fn.expression,
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [content.functions, JSON.stringify(vars)],
-  );
-
-  // ── Calcul des bornes (auto-fit si nécessaire) ───────────────────────────
+  const curves = useMemo(() => (content.functions ?? []).map(fn => ({
+    sampleAt: fn.samples ? (x:number) => interpolatePlot(fn.samples!, x, content.xMin, content.xMax, content.yMax-content.yMin) : null,
+    color: fn.color || "#3b82f6", showExpression: fn.showExpression !== false, rawExpression: fn.expression,
+  })),[content]);
   const bounds = useMemo(() => {
-    const fns = compiledFns
-      .map((f) => f.compiled)
-      .filter((c): c is (x: number) => number => c !== null);
-    return computeBounds(content, fns, vars);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, compiledFns, JSON.stringify(vars)]);
+    const {xMin,xMax,yMin,yMax}=content;
+    return [xMin,xMax,yMin,yMax].every(Number.isFinite)&&xMax>xMin&&yMax>yMin ? {xMin,xMax,yMin,yMax} : null;
+  },[content]);
 
   // ── ResizeObserver ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -322,8 +208,8 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
 
     // ── Courbes ──
     const yMargin = (yMax - yMin) * 0.5;
-    compiledFns.forEach(({ compiled, color }) => {
-      if (!compiled) return;
+    curves.forEach(({ sampleAt, color }) => {
+      if (!sampleAt) return;
       ctx.strokeStyle = color;
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
@@ -334,7 +220,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
 
       for (let px = 0; px <= cssW; px++) {
         const x = xMin + px / scaleX;
-        const y = compiled(x);
+        const y = sampleAt(x);
         const valid = typeof y === "number" && isFinite(y);
         const inBounds = valid && y >= yMin - yMargin && y <= yMax + yMargin;
 
@@ -357,7 +243,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
     });
 
     ctx.restore();
-  }, [containerWidth, content, compiledFns, bounds]);
+  }, [containerWidth, content, curves, bounds]);
 
   // ── Overlay interactif ────────────────────────────────────────────────────
   useEffect(() => {
@@ -391,9 +277,9 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
     ctx.stroke();
     ctx.setLineDash([]);
 
-    compiledFns.forEach(({ compiled, color }) => {
-      if (!compiled) return;
-      const y = compiled(hoverX);
+    curves.forEach(({ sampleAt, color }) => {
+      if (!sampleAt) return;
+      const y = sampleAt(hoverX);
       if (typeof y !== "number" || !isFinite(y)) return;
       const cy = toY(y);
       if (cy < -10 || cy > cssH + 10) return;
@@ -440,7 +326,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
     });
 
     ctx.restore();
-  }, [hoverX, containerWidth, compiledFns, bounds]);
+  }, [hoverX, containerWidth, curves, bounds]);
 
   // ── Gestion souris ────────────────────────────────────────────────────────
   const handleMouseMove = useCallback(
@@ -456,7 +342,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
   const handleMouseLeave = useCallback(() => setHoverX(null), []);
 
   // ── Légende ──────────────────────────────────────────────────────────────
-  const visibleFunctions = compiledFns.filter((f) => f.showExpression);
+  const visibleFunctions = curves.filter((f) => f.showExpression);
 
   return (
     <div className="p-5 bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -478,7 +364,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
         {visibleFunctions.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             {visibleFunctions.map((fn) => {
-              const globalIdx = compiledFns.indexOf(fn);
+              const globalIdx = curves.indexOf(fn);
               return (
                 <span
                   key={globalIdx}
@@ -490,7 +376,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
                     style={{ backgroundColor: fn.color }}
                   />
                   <span className="text-gray-600">
-                    {compiledFns.length > 1 ? (
+                    {curves.length > 1 ? (
                       <>
                         f<sub>{globalIdx + 1}</sub>(x) ={" "}
                       </>
@@ -499,7 +385,7 @@ const GraphRenderer: React.FC<RendererProps<GraphContent>> = ({
                     )}
                   </span>
                   <Latex>
-                    {simplifyLatexExpression(fn.rawExpression, vars)}
+                    {fn.rawExpression}
                   </Latex>
                 </span>
               );

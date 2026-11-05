@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { supportsDuelElements } from "./engineEligibility";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
@@ -23,6 +24,8 @@ export interface ExerciseElement {
 }
 
 export interface ExerciseRow {
+  catalog_id?:string|null;
+  active_version_id?:string|null;
   id: number;
   title: string;
   app_title?: string | null;
@@ -83,15 +86,18 @@ export async function recordAttempt(
   answer: string,
   isCorrect: boolean,
   timeSpentMs: number,
+  instanceId?:string,
 ): Promise<void> {
-  await supabase.from("duel_attempts").insert({
+  const { error } = await supabase.from("duel_attempts").insert({
     duel_id: duelId,
     player_id: playerId,
     element_id: elementId,
     answer,
     is_correct: isCorrect,
     time_spent: Math.min(Math.max(0, timeSpentMs), 600_000),
+    ...(instanceId?{duel_exercise_instance_id:instanceId}:{}),
   });
+  if(error) throw new Error("Duel attempt persistence failed");
 }
 
 // ─── Profiles ─────────────────────────────────────────────────────────────────
@@ -115,7 +121,9 @@ export async function getRandomExercise(): Promise<{
 }> {
   const { data, error } = await supabase
     .from("exercises")
-    .select("id, title, app_title, chapter, difficulty, content")
+    .select("id, title, app_title, chapter, difficulty, content, catalog_id, active_version_id")
+    // Service role bypasses RLS. Never admit an unpublished canonical draft.
+    .or("and(catalog_id.not.is.null,active_version_id.not.is.null)")
     // For duels we only want "flash" exercises that do NOT require a calculator.
     // Column names follow the Supabase schema (case‑sensitive).
     .eq("Is_Flash", true)
@@ -123,40 +131,22 @@ export async function getRandomExercise(): Promise<{
 
   if (error || !data?.length) throw new Error("No exercises available");
 
-  const nonQcm = data.filter((e) => !isQcmExercise(e));
-  const pool = nonQcm.length > 0 ? nonQcm : data;
-  const row = pool[Math.floor(Math.random() * pool.length)] as ExerciseRow;
-  const variables = generateVariables(row.content?.variables ?? []);
-  return { row, variables };
-}
-
-function isQcmExercise(exercise: { title?: string; content?: { elements?: { type: string }[] } }): boolean {
-  if ((exercise.title ?? "").toUpperCase().includes("QCM")) return true;
-  for (const el of exercise.content?.elements ?? []) {
-    if (el.type === "mcq") return true;
-  }
-  return false;
-}
-
-function generateVariables(configs: VariableConfig[]): Record<string, number> {
-  const vars: Record<string, number> = {};
-  for (const v of configs) {
-    if (!v.name) continue;
-    if (v.type === "integer") {
-      vars[v.name] = randInt(v.min ?? 0, v.max ?? 10);
-    } else if (v.type === "decimal") {
-      const raw = Math.random() * ((v.max ?? 1) - (v.min ?? 0)) + (v.min ?? 0);
-      vars[v.name] = roundTo(raw, v.decimals ?? 2);
+  const canonical = data.filter(e => e.catalog_id && e.active_version_id);
+  const eligibleIds = new Set<string>();
+  if (canonical.length) {
+    const versions = await supabase.from("exercise_versions")
+      .select("id,exercise_id,editorial_status,elements:definition->elements")
+      .in("id", canonical.map(e => e.active_version_id));
+    if (versions.error) throw new Error("Duel exercise versions unavailable");
+    for (const version of versions.data ?? []) {
+      if (version.editorial_status === "published" && supportsDuelElements(version.elements) &&
+          canonical.some(e => e.id === version.exercise_id && e.active_version_id === version.id))
+        eligibleIds.add(version.id);
     }
   }
-  return vars;
-}
-
-function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function roundTo(val: number, decimals: number): number {
-  const factor = Math.pow(10, decimals);
-  return Math.round(val * factor) / factor;
+  const available = data.filter(e => e.catalog_id && eligibleIds.has(e.active_version_id));
+  if (!available.length) throw new Error("No exercises available");
+  const row = available[Math.floor(Math.random()*available.length)] as ExerciseRow;
+  const variables = {};
+  return { row, variables };
 }

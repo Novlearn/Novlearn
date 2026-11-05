@@ -61,6 +61,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+from environment import validate_database_environment
+validate_database_environment(settings.app_env, settings.supabase_url, settings.supabase_service_key)
 
 # Log configuration status
 print(f"[Config] SUPABASE_URL: {'SET' if settings.supabase_url else 'NOT SET'}")

@@ -141,11 +141,6 @@ export function Layout({ children, isFullScreen = false }: LayoutProps) {
                 active={pathname === "/flashcards"}
                 onClick={() => router.push("/flashcards")}
               />
-              <SidebarIcon
-                emoji="🤖"
-                active={pathname === "/validation"}
-                onClick={() => router.push("/validation")}
-              />
             </>
           )}
           <SidebarIcon

@@ -9,13 +9,12 @@ import {
   Lightbulb,
   XCircle,
 } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { MathInput } from "../components/ui/MathInput";
 import MathText from "../components/ui/MathText";
 import { useAudioFeedback } from "../hooks/useAudioFeedback";
 import { QuestionContent, VariableValues } from "../types/exercise";
-import { checkAnswer } from "../utils/math/evaluation";
-import { simplifyLatexExpression } from "../utils/math/simplification";
+import type { GradeQuestion, QuestionResult } from "../lib/engine/learnerTypes";
 
 interface QuestionRendererProps {
   content: QuestionContent;
@@ -25,6 +24,8 @@ interface QuestionRendererProps {
   maxAttempts?: number;
   /** Whether to show the hint button and content (default true). Set false for duel mode. */
   allowHint?: boolean;
+  gradeAnswer?: GradeQuestion;
+  initialResult?: QuestionResult;
 }
 
 const QuestionRenderer: React.FC<QuestionRendererProps> = ({
@@ -33,21 +34,25 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
   onSubmit,
   maxAttempts = 2,
   allowHint = true,
+  gradeAnswer,
+  initialResult,
 }) => {
   const { playSuccess, playError } = useAudioFeedback();
-  const [value, setValue] = useState("");
-  const [attempts, setAttempts] = useState(0);
-  const [isFinished, setIsFinished] = useState(false);
+  const [value, setValue] = useState(initialResult?.answer && initialResult.answer.format!=="selection" ? initialResult.answer.source : "");
+  const [attempts, setAttempts] = useState(initialResult?.attempts??0);
+  const [isFinished, setIsFinished] = useState(initialResult?.finished??false);
+  const [serverResult,setServerResult]=useState(initialResult);
+  const [pending,setPending]=useState(false);
+  const [correctionError,setCorrectionError]=useState<string|null>(null);
   const [status, setStatus] = useState<"idle" | "correct" | "incorrect">(
-    "idle",
+    initialResult?.state==="correct"?"correct":initialResult?.state==="incorrect"?"incorrect":"idle",
   );
 
   const [showHint, setShowHint] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+  const explanation=serverResult?.reveal?.explanation;
 
-  const simplifiedCorrectAnswer = useMemo(() => {
-    return simplifyLatexExpression(content.correctAnswer, variables);
-  }, [content.correctAnswer, variables]);
+  const revealedAnswer = serverResult?.reveal?.latex ?? serverResult?.reveal?.texts?.[0] ?? "";
 
   // Génère le placeholder adapté au format de réponse
   const getPlaceholder = (): string => {
@@ -70,32 +75,25 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value.trim() || isFinished) return;
-
-    const currentAttempt = attempts + 1;
-    setAttempts(currentAttempt);
-
-    const isCorrect = checkAnswer(
-      value,
-      content.correctAnswer,
-      variables,
-      content.answerFormat,
-    );
-
-    if (isCorrect) {
-      setStatus("correct");
-      setIsFinished(true);
-      setShowExplanation(true);
-      playSuccess();
-      if (onSubmit) onSubmit(value, true);
-    } else {
-      setStatus("incorrect");
-      playError();
-      if (currentAttempt >= maxAttempts) {
-        setIsFinished(true);
-        if (onSubmit) onSubmit(value, false);
-      }
+    if (!value.trim() || isFinished || pending) return;
+    if(gradeAnswer) {
+      return (async()=>{
+      setPending(true);setCorrectionError(null);
+      try {
+        const result=await gradeAnswer({format:content.answerFormat==="text"?"text":"latex",source:value});
+        setServerResult(result);setAttempts(result.attempts);
+        if(result.state!=="correct"&&result.state!=="incorrect") {
+          setCorrectionError(result.state==="invalid"?"La saisie est invalide ou incomplète.":"La correction ne peut pas conclure. Réessayez.");return;
+        }
+        setStatus(result.state);setIsFinished(result.finished);
+        if(result.state==="correct") playSuccess();else playError();
+        if(result.finished) {setShowExplanation(true);onSubmit?.(value,result.state==="correct");}
+      }catch {setCorrectionError("La correction est indisponible. Réessayez.");}
+      finally {setPending(false);}
+      })();
     }
+
+    setCorrectionError("La correction est indisponible. Réessayez.");
   };
 
   const formatForDisplay = (latex: string) => {
@@ -147,14 +145,14 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 if (!isFinished && status === "incorrect") setStatus("idle");
               }}
               placeholder={getPlaceholder()}
-              disabled={isFinished}
+              disabled={isFinished || pending}
               className="w-full"
             />
           </div>
 
           <button
             type="submit"
-            disabled={!value || isFinished}
+            disabled={!value || isFinished || pending}
             className={`px-6 py-2.5 text-white font-medium rounded-lg transition-all shadow-md active:scale-95 flex-shrink-0 h-fit
               ${
                 isFinished
@@ -162,9 +160,11 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                   : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg"
               }`}
           >
-            {isFinished ? "Validé" : attempts > 0 ? "Réessayer" : "Valider"}
+            {pending ? "Vérification…" : isFinished ? "Validé" : attempts > 0 ? "Réessayer" : "Valider"}
           </button>
         </div>
+
+        {correctionError && <p role="status" className="text-orange-700">{correctionError}</p>}
 
         {/* --- FEEDBACK wrong answer (no finish yet or last attempt) --- */}
         {!isFinished && status === "incorrect" && (
@@ -228,16 +228,16 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 Réponse attendue :
               </span>
               <span className="font-bold text-xl text-slate-800">
-                {/* On passe simplifiedCorrectAnswer au lieu de content.correctAnswer */}
+                {/* The expected answer is revealed only by the server. */}
                 <MathText
-                  content={formatForDisplay(simplifiedCorrectAnswer)}
+                  content={formatForDisplay(revealedAnswer)}
                   variables={{}} // On vide les variables car elles sont déjà substituées
                   displayMode={false}
                 />
               </span>
             </div>
 
-            {content.explanation && (
+            {explanation && (
               <div className="pt-2">
                 <button
                   type="button"
@@ -270,7 +270,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                         </p>
                         <div className="text-slate-800 text-base leading-relaxed">
                           <MathText
-                            content={content.explanation}
+                            content={explanation}
                             variables={variables}
                           />
                         </div>

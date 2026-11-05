@@ -52,3 +52,25 @@ htmlcov/
 
 # Private exercise correction corpus (L0)
 /.local/exercise-correction/
+
+# Disposable local Admin SQL replay artifacts
+/.local/engine-staging/
+/.local/release-0.2.0/
+/.local/admin-build-020/
+/.local/admin-sql-replay/
+
+# Synthetic local backup/restore evidence, never publish archives
+/.local/admin-sql-backup/
+
+# Remaining workstation-only Admin replay artifacts and local evidence
+/.local/
+docs/audits/2026-10-lot1a-local-*
+docs/audits/2026-11-03-engine-publication-and-environments.md
+scripts/admin-backup-assertions.sql
+scripts/admin-backup-snapshot.sql
+scripts/compare-admin-backup.mjs
+scripts/compare-admin-backup.test.mjs
+scripts/prepare-admin-backup-fixture.mjs
+scripts/replay-novlearn-admin-isolated.ps1
+scripts/test-admin-backup-local.ps1
+supabase/rollouts/20261021115604_novlearn_admin_staging_core.sql

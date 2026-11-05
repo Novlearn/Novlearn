@@ -19,6 +19,6 @@ const server = defineServer({
   },
 });
 
-server.listen(PORT).then(() => {
+server.listen(PORT, process.env.NOVLEARN_ENGINE_ENABLED === "true" ? "127.0.0.1" : undefined).then(() => {
   console.log(`[Colyseus] Duel server running on port ${PORT}`);
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import { AVAILABLE_EXERCISES_FILTER } from "../lib/exerciseAvailability";
+
 import {
   ArrowLeft,
   Book,
@@ -110,7 +112,8 @@ export function TrainingPage() {
     (async () => {
       const { data, error } = await supabase
         .from("exercises")
-        .select("chapter");
+        .select("chapter")
+        .or(AVAILABLE_EXERCISES_FILTER);
       if (cancelled || error) return;
       const chapterNames = new Set(
         (data || []).map((r) => (r.chapter || "").trim()).filter(Boolean),
@@ -142,6 +145,7 @@ export function TrainingPage() {
       const { data, error } = await supabase
         .from("exercises")
         .select("id, title, app_title, chapter, difficulty")
+        .or(AVAILABLE_EXERCISES_FILTER)
         .eq("chapter", chapterNameInDb);
       if (cancelled) return;
       setChapterExercisesLoading(false);
@@ -208,12 +212,11 @@ export function TrainingPage() {
         let query = supabase
           .from("exercises")
           .select("id")
+          .or(AVAILABLE_EXERCISES_FILTER)
           .eq("chapter", chapterNameInDb);
 
         const dbDiff = uiToDbDifficulty(selectedDifficulty);
-        query = query.or(
-          `difficulty.eq.${dbDiff},difficulty.eq.${selectedDifficulty}`,
-        );
+        query = query.in("difficulty", [dbDiff, selectedDifficulty]);
 
         const { data, error } = await query;
         if (error) throw error;

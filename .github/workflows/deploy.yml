@@ -55,25 +55,58 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24.19.0"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Validate environment before build or VPS access
+        run: node scripts/validate-deployment-env.mjs
+        env:
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NEXT_PUBLIC_SITE_URL: ${{ github.ref == 'refs/heads/develop' && 'https://staging.novlearn.fr' || 'https://novlearn.fr' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
+          ENGINE_URL: ${{ secrets.ENGINE_URL }}
+          ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+
+      - name: Require qualified staging Engine activation
+        env:
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED }}
+        run: |
+          if [ "$NOVLEARN_ENGINE_ENABLED" != 'true' ]; then
+            echo '::error::Set staging variable NOVLEARN_ENGINE_ENABLED=true only after host qualification'
+            exit 1
+          fi
+
       - name: Install frontend dependencies (staging)
         working-directory: ./frontend
-        run: npm install --prefer-offline --no-audit
+        run: npm ci --no-audit
+
+      - name: Verify exact Engine package
+        working-directory: ./frontend
+        run: npm run verify:engine
 
       - name: Build frontend (staging)
         working-directory: ./frontend
         run: npm run build
         env:
           NODE_ENV: production
+          APP_ENV: ${{ github.ref == 'refs/heads/develop' && 'staging' || 'production' }}
+          NOVLEARN_ENGINE_ENABLED: ${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: https://staging.novlearn.fr
           NEXT_PUBLIC_COLYSEUS_URL: https://staging.novlearn.fr/duel-ws
           NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Build duel-server (staging)
+        working-directory: ./duel-server
+        run: |
+          npm ci --no-audit
+          npm run build
 
       - name: Create .env file for backend (staging)
         run: |
@@ -86,7 +119,7 @@ jobs:
           echo "SCHEDULER_ENABLED=false" >> backend/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> backend/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> backend/.env
-          echo "CORS_ORIGINS=https://novlearn.fr,https://www.novlearn.fr,https://staging.novlearn.fr" >> backend/.env
+          echo "CORS_ORIGINS=https://staging.novlearn.fr" >> backend/.env
           echo "LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}" >> backend/.env
           echo "VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}" >> backend/.env
           echo "VAPID_PRIVATE_KEY=\"${{ secrets.VAPID_PRIVATE_KEY }}\"" >> backend/.env
@@ -102,6 +135,10 @@ jobs:
           mkdir -p duel-server
           echo "# Novlearn Duel-server (Colyseus) Configuration - staging" > duel-server/.env
           echo "PORT=2568" >> duel-server/.env
+          echo "APP_ENV=staging" >> duel-server/.env
+          echo "NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}" >> duel-server/.env
+          echo "ENGINE_URL=${{ secrets.ENGINE_URL }}" >> duel-server/.env
+          echo "ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}" >> duel-server/.env
           echo "SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> duel-server/.env
           echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> duel-server/.env
 
@@ -123,33 +160,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "frontend/**,frontend/.next/**,backend/**,backend/.env,duel-server/**,deploy.sh"
+          source: "frontend/**,frontend/.next/**,backend/**,backend/.env,duel-server/**,duel-server/.env,scripts/probe-engine-vps-staging.mjs,scripts/start-staging-process.mjs"
           target: "/opt/novlearn-staging"
           strip_components: 0
-
-      - name: Deploy Apache config to VPS (staging)
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "apache/*.conf"
-          target: "/tmp/"
-          strip_components: 1
-
-      - name: Apply Apache config (staging)
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            sudo cp /tmp/novlearn.fr.conf /etc/apache2/sites-available/
-            sudo cp /tmp/novlearn.fr-le-ssl.conf /etc/apache2/sites-available/
-            sudo a2ensite novlearn.fr.conf novlearn.fr-le-ssl.conf
-            sudo mkdir -p /var/www/novlearn-staging
-            sudo chown -R $USER:$USER /var/www/novlearn-staging
-            sudo apache2ctl configtest && sudo systemctl reload apache2
 
       - name: Setup and run staging stack (no systemd)
         uses: appleboy/ssh-action@master
@@ -163,6 +176,7 @@ jobs:
             set -e
             sudo mkdir -p /opt/novlearn-staging
             sudo chown -R $USER:$USER /opt/novlearn-staging
+            export PATH="/opt/novlearn-staging/runtime/node/bin:$PATH"
             cd /opt/novlearn-staging
 
             # Backend venv + deps
@@ -191,22 +205,25 @@ jobs:
 
             # Frontend start (port 3001) — uses pre-built .next from CI
             cd /opt/novlearn-staging/frontend
-            if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
-              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-              sudo apt-get install -y nodejs
-            fi
+            # Do not install or upgrade a shared production runtime from staging.
+            node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major!==24||minor<19)throw new Error("Staging requires Node 24.19+ <25; provision a staging runtime first")'
 
             # Write .env.local for server-side runtime vars (NEXT_PUBLIC_* are baked in CI build)
             cat > .env.local << 'ENVSTAGING'
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            APP_ENV=staging
+            NOVLEARN_ENGINE_ENABLED=${{ vars.NOVLEARN_ENGINE_ENABLED || 'false' }}
+            ENGINE_URL=${{ secrets.ENGINE_URL }}
+            ENGINE_TOKEN=${{ secrets.ENGINE_TOKEN }}
             NEXT_PUBLIC_SITE_URL=https://staging.novlearn.fr
             NEXT_PUBLIC_COLYSEUS_URL=https://staging.novlearn.fr/duel-ws
             NEXT_PUBLIC_GA_ID=${{ secrets.NEXT_PUBLIC_GA_ID }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
             ENVSTAGING
 
-            npm install --prefer-offline --no-audit
+            chmod 600 .env.local
+            npm ci --omit=dev --no-audit
 
             # Force cleanup on port 3001 (avoid EADDRINUSE).
             # Without this, `next start` fails with EADDRINUSE and Apache serves stale hashes => 404 for CSS/chunks.
@@ -224,8 +241,20 @@ jobs:
             fi
 
             # Start Next.js on port 3001 (use next start explicitly for correct port binding)
-            nohup ./node_modules/.bin/next start -p 3001 > ../frontend-staging.log 2>&1 &
-            echo $! > frontend-staging.pid
+            nohup node ../scripts/start-staging-process.mjs frontend > ../frontend-staging.log 2>&1 &
+
+            # Run the staging duel build with its own staging .env and port.
+            cd /opt/novlearn-staging/duel-server
+            npm ci --omit=dev --no-audit
+            if [ -f duel-staging.pid ]; then
+              OLD_PID=$(cat duel-staging.pid || echo "")
+              if [ -n "$OLD_PID" ] && ps -p "$OLD_PID" > /dev/null 2>&1; then
+                kill "$OLD_PID"
+                sleep 2
+              fi
+            fi
+            chmod 600 .env
+            nohup node ../scripts/start-staging-process.mjs duel-server > ../duel-staging.log 2>&1 &
 
       - name: Verify staging deployment
         uses: appleboy/ssh-action@master
@@ -269,6 +298,8 @@ jobs:
               exit 1
             fi
 
+            cd /opt/novlearn-staging
+            node scripts/probe-engine-vps-staging.mjs --processes
             echo "✅ Déploiement staging vérifié"
 
   # ---- PRODUCTION: only on push to main ----

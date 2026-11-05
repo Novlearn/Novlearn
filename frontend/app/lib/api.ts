@@ -16,6 +16,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   } = await supabase.auth.getSession();
 
   if (error || !session?.access_token) {
+    if(process.env.NEXT_PUBLIC_ENGINE_ENABLED==="true") return {"Content-Type":"application/json"};
     throw new Error("Not authenticated");
   }
 
@@ -126,13 +127,14 @@ export interface ChapterTestNextResponse {
 export async function postChapterTestNext(
   chapter: string,
   lastSuccess: boolean,
+  engineSessionId?:string,
 ): Promise<ChapterTestNextResponse | null> {
   try {
     return await apiRequest<ChapterTestNextResponse>(
       "/api/chapter-test/next",
       {
         method: "POST",
-        body: JSON.stringify({ chapter, last_success: lastSuccess }),
+        body: JSON.stringify({ chapter, last_success: lastSuccess,...(engineSessionId?{engine_session_id:engineSessionId}:{}) }),
       },
     );
   } catch {
@@ -340,21 +342,7 @@ export const dsApi = {
     });
   },
 
-  async submitDSAnswer(
-    dsId: string,
-    exerciseId: string,
-    competenceIds: string[],
-    isCorrect: boolean,
-    difficulty: string,
-  ): Promise<{ message: string }> {
-    return apiRequest(`/api/ds/${encodeURIComponent(dsId)}/submit`, {
-      method: "POST",
-      body: JSON.stringify({
-        exercise_id: exerciseId,
-        competence_ids: competenceIds,
-        is_correct: isCorrect,
-        difficulty,
-      }),
-    });
+  async submitDSAnswer(dsId: string, engineSessionId: string): Promise<{message:string}> {
+    return apiRequest(`/api/ds/${encodeURIComponent(dsId)}/submit`,{method:"POST",body:JSON.stringify({engine_session_id:engineSessionId})});
   },
 };
