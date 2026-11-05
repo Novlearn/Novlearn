@@ -126,9 +126,11 @@ function attachGraphPlot(
         sampled.value.instanceId !== official.instanceId ||
         sampled.value.elementId !== graphId || sampled.value.state === "unsupported")
         throw new EngineError(422, "Rendu graphique indisponible.");
-    const source = official.elements.find(e => e.type === "function-graph" && e.id === graphId);
-    const target = projected.elements.find(e => e.type === "function-graph" && e.id === graphId);
-    if (!source || !target || source.functions.length !== target.functions.length)
+    const source = official.elements.find(e => e.id === graphId);
+    const target = projected.elements.find(e => e.id === graphId);
+    if (!source || source.type !== "function-graph" ||
+        !target || target.type !== "function-graph" ||
+        source.functions.length !== target.functions.length)
         throw new EngineError(422, "Rendu graphique indisponible.");
     const xMin = target.window.xMin.numerator / target.window.xMin.denominator;
     const xMax = target.window.xMax.numerator / target.window.xMax.denominator;
