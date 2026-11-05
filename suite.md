@@ -229,7 +229,7 @@ Le workflow `.github/workflows/deploy.yml` déploie sur push `develop` (staging)
 
 La reprise par une autre équipe est possible grâce au README, à l’architecture documentée, aux scripts de démarrage, aux migrations et aux guides de test. Les commandes de test sont décrites, mais ne sont pas reliées à des barrières CI.
 
-La documentation n’est pas entièrement synchronisée : [`docs/AUDIT_REPRISE.md`](</C:/Users/balth/Desktop/Cours/2A/PAI/Novlearn/docs/AUDIT_REPRISE.md>) décrit encore `backend/main.py` comme un monolithe de 1 230 lignes, alors que le code actuel assemble des routeurs. `ARCHITECTURE.md` cite également des routes ou modules dont certains ne figurent plus dans l’arborescence. Ces documents restent utiles comme historique et pistes, mais leurs diagnostics doivent être revalidés avant application.
+L’index [docs/README.md](docs/README.md) décrit la documentation active. Les constats de ce rapport sont datés et doivent être vérifiés dans le code avant application.
 
 Autres lacunes : pas de `.env.example` détecté, seed déclaré mais absent, versions d’environnement partiellement implicites, pas de convention de migration production détaillée ni de runbook incident/restauration identifié.
 

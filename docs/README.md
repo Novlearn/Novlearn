@@ -17,9 +17,8 @@
 
 Les points d'entrée automatisés sont déclarés dans `package.json`, `frontend/package.json` et `.github/workflows/`. Plusieurs autres scripts servent aux opérations manuelles de sauvegarde/rejeu, à la qualification staging ou aux diagnostics; l'absence d'un appel depuis le code ne suffit pas à établir qu'ils sont inutiles. `npm run correction:catalog:export` lit le catalogue Supabase configuré par `backend/.env` et écrit un corpus privé sous `.local/exercise-correction/`; ces données ne doivent pas être publiées. Les commandes `verify` et `replay` utilisent le corpus local.
 
-## Propositions et historique
+## Historique utile
 
-- [Propositions SQL](sql-proposals/README.md) — brouillons non exécutables; les migrations de `supabase/migrations/` sont la source versionnée du schéma
-- `audits/` — constats et preuves datés. Ils décrivent l'état inspecté au moment de chaque audit, pas nécessairement l'état actuel du code ou des bases distantes.
 - [Intégration moteur 0.2.0](engine-0.2.0-integration.md) — historique de version
-- `AUDIT_REPRISE.md` et `PE69B-rapport_cyber.md` — analyses datées; revalider les constats avant de les traiter comme des tâches actuelles
+- [Analyse de sécurité PE69B](PE69B-rapport_cyber.md) — scan daté du 17 mars 2026; vérifier l'état actuel avant d'agir sur ses constats
+- Les migrations versionnées de `supabase/migrations/` sont la source de vérité du schéma. Les anciens audits et propositions SQL ont été retirés.
