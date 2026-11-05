@@ -122,9 +122,115 @@ jobs:
             "$runtime_link/bin/node" --version
             "$runtime_link/bin/npm" --version
 
-  qualify_staging_host:
+  configure_staging_apache_route:
     if: github.event_name == 'push' && github.ref == 'refs/heads/codex/integration-engine-staging'
     needs: provision_staging_node_runtime
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 5
+    steps:
+      - name: Route staging exercises to Next and validate Apache before reload
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 3m
+          script: |
+            set -eu
+            config=/etc/apache2/sites-available/novlearn.fr-le-ssl.conf
+            backup="$(mktemp /tmp/novlearn-apache-staging-route.XXXXXX)"
+            sudo cp -p "$config" "$backup"
+            sudo chmod 600 "$backup"
+            changed=0
+            cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ] && [ "$changed" -eq 1 ]; then
+                sudo cp -p "$backup" "$config"
+                sudo apache2ctl configtest
+                sudo systemctl reload apache2
+                echo "Apache configuration restored after the staging route update failed"
+              fi
+              sudo rm -f "$backup"
+            }
+            trap cleanup EXIT
+
+            route_result="$(sudo python3 - "$config" <<'PY'
+            import os
+            import re
+            import stat
+            import sys
+            import tempfile
+
+            path = sys.argv[1]
+            with open(path, "r", encoding="utf-8", newline="") as source:
+                config = source.read()
+            blocks = list(re.finditer(r"<VirtualHost\b[^>]*>.*?</VirtualHost>", config, re.S | re.I))
+            staging = [block for block in blocks if re.search(r"^[ \t]*ServerName[ \t]+staging\.novlearn\.fr[ \t]*$", block.group(), re.M | re.I)]
+            if len(staging) != 1:
+                raise SystemExit("Expected exactly one staging TLS virtual host; no configuration changed")
+
+            block = staging[0]
+            lines = block.group().splitlines(keepends=True)
+            generic = re.compile(r"^[ \t]*ProxyPass[ \t]+/api/?[ \t]+", re.I)
+            route = re.compile(r"^[ \t]*ProxyPass(?:Reverse)?[ \t]+/api/exercises/?[ \t]+", re.I)
+            generic_indices = [index for index, line in enumerate(lines) if generic.match(line)]
+            if len(generic_indices) != 1:
+                raise SystemExit("Expected exactly one generic /api ProxyPass in the staging virtual host; no configuration changed")
+
+            expected = [
+                "ProxyPass /api/exercises http://localhost:3001/api/exercises",
+                "ProxyPassReverse /api/exercises http://localhost:3001/api/exercises",
+            ]
+            existing = [(index, line.strip()) for index, line in enumerate(lines) if route.match(line)]
+            if [line for _, line in existing] == expected and existing[-1][0] < generic_indices[0]:
+                print("route_unchanged")
+                raise SystemExit(0)
+
+            lines = [line for line in lines if not route.match(line)]
+            generic_indices = [index for index, line in enumerate(lines) if generic.match(line)]
+            if len(generic_indices) != 1:
+                raise SystemExit("Generic /api ProxyPass became ambiguous; no configuration changed")
+            index = generic_indices[0]
+            indent = re.match(r"^[ \t]*", lines[index]).group(0)
+            newline = "\r\n" if "\r\n" in block.group() else "\n"
+            additions = [indent + directive + newline for directive in expected]
+            updated_block = "".join(lines[:index] + additions + lines[index:])
+            updated = config[:block.start()] + updated_block + config[block.end():]
+
+            metadata = os.stat(path)
+            descriptor, temporary = tempfile.mkstemp(prefix=".novlearn-staging-apache-", dir=os.path.dirname(path))
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as target:
+                    target.write(updated)
+                    target.flush()
+                    os.fsync(target.fileno())
+                os.chmod(temporary, stat.S_IMODE(metadata.st_mode))
+                os.chown(temporary, metadata.st_uid, metadata.st_gid)
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            print("route_changed")
+            PY
+            )"
+            if [ "$route_result" = "route_unchanged" ]; then
+              echo "Staging /api/exercises route is already correct; Apache was not reloaded"
+              exit 0
+            fi
+            if [ "$route_result" != "route_changed" ]; then
+              echo "Unexpected staging route update result"
+              exit 1
+            fi
+            changed=1
+            sudo apache2ctl configtest
+            sudo systemctl reload apache2
+            changed=0
+            echo "Staging /api/exercises now routes to Next on port 3001"
+
+  qualify_staging_host:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/integration-engine-staging'
+    needs: [provision_staging_node_runtime, configure_staging_apache_route]
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 5
@@ -175,8 +281,10 @@ jobs:
             blocks=re.findall(r'<VirtualHost\b[^>]*>.*?</VirtualHost>',config,re.S)
             staging=[b for b in blocks if re.search(r'^\s*ServerName\s+staging\.novlearn\.fr\s*$',b,re.M)]
             assert len(staging)==1, 'Staging Apache virtual host unavailable'
-            assert re.search(r'ProxyPass\s+/api/exercises\s+http://(?:localhost|127\.0\.0\.1):3001/api/exercises',staging[0]), 'Staging Apache must route /api/exercises to Next port 3001 before generic /api'
-            print('PASS: staging Apache exercise route targets Next port 3001; no Apache change')
+            route=re.search(r'^\s*ProxyPass\s+/api/exercises\s+http://(?:localhost|127\.0\.0\.1):3001/api/exercises',staging[0],re.M)
+            generic=re.search(r'^\s*ProxyPass\s+/api/?\s+http://',staging[0],re.M)
+            assert route and generic and route.start()<generic.start(), 'Staging Apache must route /api/exercises to Next port 3001 before generic /api'
+            print('PASS: staging Apache exercise route targets Next port 3001')
             PY
       - name: Require activation after host qualification
         env:

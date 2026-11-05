@@ -13,7 +13,10 @@ Dans duel-server : `npm ci`, `npm test`, `npm run build`.
 La CI `Verify Engine integration` couvre les pushes de la branche
 `codex/integration-engine-staging` et les PR. La qualification SSH supplémentaire
 s'exécute uniquement sur les pushes de cette branche, avec l'environnement
-GitHub **staging**. Elle ne déploie aucun service ni Engine.
+GitHub **staging**. Elle installe le runtime Node dans le préfixe staging dédié
+et corrige la route Apache `/api/exercises` dans le seul vhost TLS staging,
+avec sauvegarde, `apache2ctl configtest` et rechargement Apache. Elle ne déploie
+aucun service applicatif ni Engine.
 
 ## Configuration et preuve VPS
 
@@ -35,12 +38,13 @@ réponse. Un calcul `parseMathInput` synthétique ne crée aucune donnée métie
 Le SDK livré à Next et la fonction `engineRun` compilée des duels sont aussi
 appelés avec les valeurs héritées par les processus.
 
-Le workflow ne remplace plus les fichiers Apache partagés ni ne recharge Apache.
-La qualification exige que le vhost staging existant route déjà `/api/exercises`
-vers Next sur 3001 avant le proxy générique `/api`. Si cette condition manque,
-la fusion est suspendue : une modification limitée au vhost staging doit être
-préparée et vérifiée séparément. Le chemin public `/run` pour Admin reste hors
-de cette livraison. Aucun déploiement ni reconstruction Engine n'est requis.
+Le workflow ne remplace jamais le fichier Apache partagé. Il ajoute ou remet en
+ordre uniquement `ProxyPass /api/exercises` et `ProxyPassReverse` dans le bloc
+`staging.novlearn.fr`, avant le proxy générique `/api`, puis valide toute la
+configuration avec `apache2ctl configtest` avant de recharger Apache. En cas
+d'échec, il restaure la configuration précédente. Le vhost production n'est pas
+modifié. Le chemin public `/run` pour Admin reste hors de cette livraison ; aucun
+déploiement ni reconstruction Engine n'est requis.
 
 ## Données et limites de réception
 
