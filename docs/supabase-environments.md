@@ -127,7 +127,7 @@ En local, renseigner les valeurs staging dans `frontend/.env.local`, `backend/.e
 
 Les trois services d'un environnement doivent utiliser la même URL Supabase et les clés correspondantes. Le frontend staging doit aussi avoir sa propre `NEXT_PUBLIC_SITE_URL`, son URL Colyseus et son backend/API staging. Les `NEXT_PUBLIC_*` sont intégrées au build : reconstruire et redéployer après modification, puis se reconnecter.
 
-Le workflow existant reste un déploiement VPS. Il prépare le fichier d'environnement Colyseus staging, mais son étape de démarrage staging ne lance pas Colyseus : prévoir le processus staging dédié sur le port 2568 et vérifier le proxy `/duel-ws`. La migration d'hébergement Vercel/Render reste un chantier séparé ; le proxy API de production dépend encore d'Apache.
+Le workflow actuel déploie les trois services sur le VPS : FastAPI staging sur le port 8011, frontend sur 3001 et Colyseus sur 2568. Il vérifie les processus staging et l'API, puis lance la sonde moteur; vérifier également le proxy `/duel-ws` si le routage temps réel change. La production utilise les ports 8010 et 2567 derrière Apache.
 
 ## 5. Realtime, Storage et effets externes
 

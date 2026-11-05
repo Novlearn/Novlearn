@@ -141,4 +141,4 @@ Migrations in `supabase/migrations/`. Key tables:
 
 ### Deployment
 
-Automated via GitHub Actions on push to `main`. Deploys to a VPS with Apache reverse proxy + systemd services. The backend runs on port 8010 internally.
+Automated via GitHub Actions on direct pushes to `develop` (staging) and `main` (production). Staging runs beside production on the VPS; production uses Apache reverse proxy + systemd services. The backend listens on port 8010 in production and 8011 in staging. Pull requests run CI but do not deploy.
