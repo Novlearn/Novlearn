@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run verify:engine
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run build
+        env:
+          APP_ENV: staging
+          NOVLEARN_ENGINE_ENABLED: 'false'
+          NEXT_PUBLIC_SITE_URL: https://staging.novlearn.fr
+          NEXT_PUBLIC_SUPABASE_URL: https://tksvbkvfusrnxulpahky.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_build_fixture_only
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+      - run: pip install -r backend/requirements-test.txt
+      - run: python -m pytest
+        working-directory: backend
+
+  duels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: duel-server
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: duel-server/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: node --test ../scripts/validate-deployment-env.test.mjs ../scripts/probe-engine-vps-staging.test.mjs
