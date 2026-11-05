@@ -2,6 +2,8 @@
 
 Date : 10 septembre 2026. Périmètre : dépôt complet (frontend Next.js, backend FastAPI, duel-server Colyseus, migrations Supabase, CI/CD, docs). Base Supabase de production non consultée (aucun projet accessible via le connecteur) : l'état réel des tables et des policies RLS est déduit des migrations.
 
+> **Historique.** Cet audit décrit le dépôt au 10 septembre 2026; il n'est pas un état courant. Le suivi documentaire du 5 novembre 2026 a actualisé le README, les guides de tests, notifications et environnements, et a supprimé plusieurs guides obsolètes. Voir [l'index des docs](README.md) et la [roadmap candidate](product/roadmap.md). Revalider chaque constat dans le code avant d'en faire une tâche.
+
 ## 1. Synthèse
 
 Le projet est en bon état technique pour être repris : tout compile, tout est lint-clean et les trois suites de tests sont vertes (319 tests). L'architecture à trois services est cohérente et documentée dans `ARCHITECTURE.md`.

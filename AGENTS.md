@@ -112,7 +112,7 @@ Uses **Next.js App Router**. All routes are under `frontend/app/`.
 - `competence_settings.py` — loads competence IDs and max_points from the `competences` table (cached in-process)
 - `recommandation_settings.py` — streak thresholds and difficulty distribution parameters
 
-**Chapter placement test** (`chapter_placement_test.py`): Tests users on a chapter before allowing free practice; uses adaptive questioning.
+**Chapter placement test** (`chapter_placement_test.py`): Legacy routes and logic remain, but migration 019 drops their state tables and no later migration recreates them. Treat the flow as unavailable until its product scope and schema are reconciled; see `docs/product/user-flows.md`.
 
 ### Duel server (`duel-server/`)
 

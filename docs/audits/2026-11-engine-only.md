@@ -30,9 +30,9 @@ approchées n'interviennent jamais dans une correction exacte.
 L'ancien écran `/validation`, son action API Claude et son entrée de navigation
 sont retirés après l'accord utilisateur. Les données ne sont pas supprimées.
 Le regroupement des écrans feedback, dashboard et flashcards dans Admin reste
-une étape suivante. Les tests de caractérisation de l'ancien moteur sont
-conservés comme textes historiques dans `legacy-math-baseline/` ; les tests
-exécutables vérifient désormais le parcours Engine.
+une étape suivante. Les anciennes copies texte des tests de caractérisation ont
+été supprimées lors de la consolidation documentaire; les tests exécutables du
+projet vérifient désormais le parcours Engine.
 
 ## Archive commune et réception
 

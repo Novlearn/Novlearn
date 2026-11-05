@@ -40,6 +40,7 @@ Les migrations historiques sont conservées dans `supabase/migrations/`. Pour in
 
 ## Références
 
+- [Index de la documentation](docs/README.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md) — architecture et composants
 - [README-TESTS.md](README-TESTS.md) — commandes et conventions de tests
 - [docs/supabase-environments.md](docs/supabase-environments.md) — staging, production et restauration
