@@ -58,12 +58,14 @@ describe("GET /api/exercises access control", () => {
     expect(response.status).toBe(403);
   });
 
-  it("keeps the full exercise editor read available to an admin", async () => {
+  it("returns catalogue metadata to an admin without legacy content", async () => {
     state.user = { id: "admin-1" };
     state.role = "admin";
     const response = await GET(new Request("https://novlearn.test/api/exercises?id=10", { headers: { authorization: "Bearer admin-token" } }));
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(body.data.elements[0].content.correctAnswer).toBe("42");
+    expect(body.data.title).toBe("Test");
+    expect(body.data).not.toHaveProperty("elements");
+    expect(body.data).not.toHaveProperty("content");
   });
 });

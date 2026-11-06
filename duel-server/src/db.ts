@@ -31,10 +31,6 @@ export interface ExerciseRow {
   app_title?: string | null;
   chapter: string;
   difficulty: string;
-  content: {
-    variables: VariableConfig[];
-    elements: ExerciseElement[];
-  };
 }
 
 export interface DuelRow {
@@ -121,7 +117,7 @@ export async function getRandomExercise(): Promise<{
 }> {
   const { data, error } = await supabase
     .from("exercises")
-    .select("id, title, app_title, chapter, difficulty, content, catalog_id, active_version_id")
+    .select("id, title, app_title, chapter, difficulty, catalog_id, active_version_id")
     // Service role bypasses RLS. Never admit an unpublished canonical draft.
     .or("and(catalog_id.not.is.null,active_version_id.not.is.null)")
     // For duels we only want "flash" exercises that do NOT require a calculator.
