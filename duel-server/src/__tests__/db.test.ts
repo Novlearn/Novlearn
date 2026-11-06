@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { mockFrom, mockSupabaseAuth } = vi.hoisted(() => {
   const mockChain = {
-    select: vi.fn().mockReturnThis()
+    select: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
