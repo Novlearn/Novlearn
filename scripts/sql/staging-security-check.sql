@@ -50,6 +50,7 @@ SELECT set_config('request.jwt.claims','{}',true);
 SELECT set_config('request.jwt.claim.sub','',true);
 SET LOCAL ROLE anon;
 DO $anon$ BEGIN
+ BEGIN PERFORM * FROM public.get_weekly_leaderboard(now(),NULL,'score'); RAISE EXCEPTION 'unbounded ranking allowed'; EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
  IF EXISTS(SELECT 1 FROM public.profiles) THEN RAISE EXCEPTION 'anonymous profiles'; END IF;
  IF EXISTS(SELECT 1 FROM public.exercises WHERE active_version_id IS NULL AND catalog_id IS NOT NULL) THEN RAISE EXCEPTION 'anonymous draft'; END IF;
  PERFORM public.get_random_exercise();
