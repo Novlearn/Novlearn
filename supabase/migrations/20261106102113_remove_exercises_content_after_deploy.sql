@@ -2,6 +2,11 @@
 -- Abort rather than discard any legacy exercise content (especially in production).
 DO $precondition$
 BEGIN
+ IF current_user <> 'postgres' THEN RAISE EXCEPTION 'run this migration as postgres'; END IF;
+ IF has_schema_privilege('novlearn_publication_writer','public','CREATE') OR EXISTS(
+  SELECT 1 FROM pg_auth_members
+  WHERE roleid='novlearn_publication_writer'::regrole AND member='postgres'::regrole AND grantor='postgres'::regrole
+ ) THEN RAISE EXCEPTION 'unexpected writer migration privileges; review before changing memberships'; END IF;
  IF EXISTS(SELECT 1 FROM public.exercises WHERE content IS DISTINCT FROM '{}'::jsonb) THEN
   RAISE EXCEPTION 'nonempty legacy exercise content requires explicit migration';
  END IF;
