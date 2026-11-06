@@ -15,7 +15,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { mockFrom, mockSupabaseAuth } = vi.hoisted(() => {
   const mockChain = {
-    select: vi.fn().mockReturnThis(),
+    select: vi.fn((columns: string) => {
+      expect(columns.split(",").map(c => c.trim())).not.toContain("content");
+      return chain;
+    }),
     or: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -218,7 +221,7 @@ function setExercisesResult(exercises: unknown[], error: unknown = null, version
 }
 
 describe("getRandomExercise / Engine only",()=>{
-  const row={id:1,title:"Exercice",catalog_id:"catalog",active_version_id:"v1",content:{}};
+  const row={id:1,title:"Exercice",catalog_id:"catalog",active_version_id:"v1"};
   const version={id:"v1",exercise_id:1,editorial_status:"published",elements:[{type:"question"}]};
   it("selects a published canonical exercise without generating browser variables",async()=>{
     setExercisesResult([row],null,[version]);
