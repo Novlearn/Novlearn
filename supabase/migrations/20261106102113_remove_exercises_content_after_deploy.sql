@@ -83,6 +83,13 @@ END;
 $function$
 ;
 
+-- The publication function deliberately belongs to its restricted writer role.
+-- PostgreSQL requires explicit SET ROLE (the membership is NOINHERIT).
+-- Temporary migration-only membership; preserve the existing Supabase-managed
+-- NOINHERIT/SET FALSE membership by revoking only our own grant below.
+GRANT novlearn_publication_writer TO postgres WITH INHERIT FALSE, SET TRUE;
+GRANT CREATE ON SCHEMA public TO novlearn_publication_writer;
+SET LOCAL ROLE novlearn_publication_writer;
 CREATE OR REPLACE FUNCTION public.apply_exercise_publication(p_payload jsonb, p_expected_state text, p_mode text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -140,6 +147,10 @@ BEGIN
   RETURN jsonb_build_object('result',CASE WHEN p_mode='rollback' THEN 'rolled_back' ELSE 'published' END,'businessDigest',actual_digest,'target',final_state);
 END; $function$
 ;
+
+RESET ROLE;
+REVOKE CREATE ON SCHEMA public FROM novlearn_publication_writer;
+REVOKE novlearn_publication_writer FROM postgres GRANTED BY postgres;
 
 CREATE OR REPLACE FUNCTION novlearn_admin_private.taxonomy_usage(p_kind text, p_id text, p_tokens text[])
  RETURNS jsonb
