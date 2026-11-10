@@ -9,7 +9,7 @@ Les élèves de Terminale spécialité mathématiques ont besoin d'un entraînem
 ## Utilisateurs
 
 - **Élève :** s'entraîne, consulte sa progression, révise avec des flashcards et peut participer à un duel ou à un devoir surveillé.
-- **Équipe pédagogique et administration :** consulte les données de suivi et utilise les écrans d'administration et de validation prévus par les rôles applicatifs.
+- **Équipe pédagogique et administration :** consulte les données de suivi et utilise l'application indépendante Novlearn-Admin pour les fonctions administratives migrées.
 
 ## Périmètre présent dans le dépôt
 
@@ -18,7 +18,7 @@ Les élèves de Terminale spécialité mathématiques ont besoin d'un entraînem
 - Tentatives, progression par compétence et classements.
 - Flashcards, création et réalisation de devoirs surveillés.
 - Invitations et matchs 1v1, avec lobby API et serveur temps réel Colyseus.
-- Préférences de notification et écrans d'administration/validation.
+- Préférences de notification. Les anciens tableaux de bord de Novlearn sont retirés lorsque leur remplacement dans Novlearn-Admin est reçu; les parcours encore en migration restent dans l'application jusqu'à leur réception.
 
 La présence d'un écran ou d'un endpoint ne certifie pas que le parcours fonctionne avec le schéma distant actuellement déployé. Vérifier notamment les fonctions d'administration et tout changement qui dépend d'une migration.
 

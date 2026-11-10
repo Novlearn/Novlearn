@@ -256,8 +256,8 @@ Préférences : notifications (push, email), chapitres masqués, apparence (mode
 #### `/classes` — Gestion de classes (tuteurs)
 Fonctionnalité pour les enseignants : gestion de groupes d'élèves.
 
-#### `/feedback` — Feedback exercice
-Formulaire permettant à l'utilisateur de signaler un problème sur un exercice (erreur, ambiguïté). Les retours sont modérés côté admin.
+#### `/feedback` — retirée
+L'ancien tableau de consultation administrative des feedbacks a été supprimé. L'envoi des retours élèves reste disponible dans la modale de feedback intégrée à l'application; la consultation administrative est centralisée dans Novlearn-Admin.
 
 ### 4.2 Pages d'authentification
 

@@ -19,7 +19,7 @@ Les détails de correction et de score varient selon le mode. Toute refonte doit
 
 ## Révision et devoir surveillé
 
-- **Flashcards :** l'élève ouvre ses cartes, révise les questions/réponses et gère les cartes offertes par l'interface.
+- **Flashcards :** la route `/flashcards` et ses fonctions existantes sont conservées pendant que la réception opérationnelle de leur remplacement dans Novlearn-Admin reste à confirmer.
 - **Devoir surveillé :** l'élève crée ou ouvre un devoir, réalise les exercices retenus et consulte son résultat.
 
 ## Duel
@@ -30,7 +30,11 @@ Les détails de correction et de score varient selon le mode. Toute refonte doit
 
 ## Administration
 
-Les rôles autorisés ouvrent les tableaux de bord et les écrans de validation disponibles. Le dépôt ne documente pas un éditeur général d'exercices avec un cycle complet brouillon → publication; ne pas supposer qu'un tel flux est en production.
+Novlearn est l'application destinée aux élèves. Novlearn-Admin centralise les statistiques, la consultation des utilisateurs et des feedbacks, ainsi que la gestion éditoriale des exercices. Les anciennes pages `/admin/dashboard` et `/feedback` de Novlearn ont été supprimées; ces URL n'ont plus de page dédiée. L'envoi de feedback depuis l'exercice reste disponible via la modale élève.
+
+La route partagée `GET /api/exercises` est conservée pour le catalogue consommé par les parcours élèves et les intégrations existantes. Sa réponse détaillée réservée aux administrateurs n'est pas modifiée dans cette tâche, car ses éventuels consommateurs externes ne sont pas vérifiés ici. Aucune route FastAPI réservée à l'administration n'a été identifiée.
+
+La route `/flashcards` conserve pour l'instant ses fonctions existantes, y compris la gestion des cartes : le code correspondant existe dans Novlearn-Admin, mais sa réception opérationnelle n'est pas attestée dans la documentation consultée. Les écrans historiques liés aux exercices Claude restent hors périmètre.
 
 ## Parcours de placement par chapitre — bloqué
 

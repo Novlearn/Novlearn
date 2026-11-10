@@ -70,12 +70,6 @@ export function Layout({ children, isFullScreen = false }: LayoutProps) {
   const isSettings = pathname === "/parametres";
   const isAccount = pathname === "/compte";
 
-  // Vérification des rôles (admin ou tuteur)
-  const userRole = (profile as any)?.role;
-  const isAdmin = userRole === "admin";
-  const isTuteur = userRole === "tuteur";
-  const hasDashboardAccess = isAdmin || isTuteur;
-
   const openConversionModal = () => setShowConversionModal(true);
 
   // Contenu de la barre de navigation (Sidebar Desktop OU Bottom Bar Mobile)
@@ -125,31 +119,6 @@ export function Layout({ children, isFullScreen = false }: LayoutProps) {
 
       {/* Espaceur : Uniquement sur Desktop pour pousser les réglages en bas */}
       {!isMobile && <div className="flex-1" />}
-
-      {/* --- SECTION ADMIN (PC UNIQUEMENT) --- */}
-      {!isMobile && hasDashboardAccess && (
-        <>
-          {isAdmin && (
-            <>
-              <SidebarIcon
-                emoji="📢"
-                active={pathname === "/feedback"}
-                onClick={() => router.push("/feedback")}
-              />
-              <SidebarIcon
-                emoji="🗂️"
-                active={pathname === "/flashcards"}
-                onClick={() => router.push("/flashcards")}
-              />
-            </>
-          )}
-          <SidebarIcon
-            emoji="📈"
-            active={pathname === "/admin/dashboard"}
-            onClick={() => router.push("/admin/dashboard")}
-          />
-        </>
-      )}
 
       {/* Icône Compte -> Uniquement sur Mobile */}
       {isMobile && (
