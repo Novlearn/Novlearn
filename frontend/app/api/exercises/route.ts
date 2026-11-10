@@ -91,8 +91,8 @@ export async function GET(request: Request) {
     let dataToReturn;
 
     if (id) {
-      // Full exercise JSON contains answers and explanations. The generic API
-      // is not an exercise-delivery endpoint; only the admin editor may fetch it.
+      // This legacy admin endpoint returns catalogue metadata only.
+      // Canonical definitions and editorial actions belong to Novlearn-Admin.
       if (!isAdmin) {
         return NextResponse.json(
           { success: false, error: "Forbidden" },
@@ -116,9 +116,8 @@ export async function GET(request: Request) {
           chapter: data.chapter,
           difficulty: data.difficulty,
           competences: data.competences || [],
-          isFlash: data.is_flash ?? false,
-          needCalculator: data.need_calculator ?? false,
-          ...data.content,
+          isFlash: data.Is_Flash ?? false,
+          needCalculator: data.Need_Calculator ?? false,
         },
       };
     } else {
