@@ -1,6 +1,8 @@
 # Novlearn
 
-Plateforme de pratique des mathématiques du Bac : exercices adaptatifs, suivi des compétences et duels en temps réel. Le dépôt contient trois services, une base Supabase et les migrations SQL.
+Plateforme destinée aux élèves pour pratiquer les mathématiques du Bac : exercices adaptatifs, suivi des compétences et duels en temps réel. L'administration est centralisée dans l'application indépendante [Novlearn-Admin](https://github.com/Novlearn/Novlearn-admin). Ce dépôt contient les trois services élèves, leur intégration Supabase et les migrations SQL.
+
+Les anciennes pages `/admin/dashboard` et `/feedback` de Novlearn ont été retirées. Les statistiques, le suivi des utilisateurs et la consultation administrative des feedbacks sont gérés dans Novlearn-Admin. L'envoi de feedback par les élèves reste disponible dans l'application. `/api/exercises` est conservée pour le catalogue utilisé par les parcours élèves et pour ses intégrations existantes; aucune opération administrative sur les exercices n'est modifiée dans cette migration.
 
 ## Développer
 
