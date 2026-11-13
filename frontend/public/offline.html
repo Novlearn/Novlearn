@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Connexion indisponible — Novlearn</title>
+    <style>
+      /* Standalone fallback: keep the values aligned with app/globals.css. */
+      :root {
+        color-scheme: dark;
+        --color-bg-soft: 222 47% 11%;
+        --color-surface: 215 28% 17%;
+        --color-border: 215 25% 27%;
+        --color-text-strong: 0 0% 100%;
+        --color-text-main: 213 31% 91%;
+        --color-primary: 221 83% 53%;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          color-scheme: light;
+          --color-bg-soft: 210 40% 98%;
+          --color-surface: 0 0% 100%;
+          --color-border: 214 32% 91%;
+          --color-text-strong: 222 47% 11%;
+          --color-text-main: 215 25% 27%;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        font-family: "Fredoka", system-ui, sans-serif;
+        background: hsl(var(--color-bg-soft));
+        color: hsl(var(--color-text-main));
+      }
+      main {
+        width: 100%;
+        max-width: 30rem;
+        padding: 2rem;
+        border: 1px solid hsl(var(--color-border));
+        border-radius: 1rem;
+        background: hsl(var(--color-surface));
+      }
+      h1 { color: hsl(var(--color-text-strong)); font-size: 1.5rem; }
+      p { line-height: 1.6; }
+      a {
+        display: inline-block;
+        padding: .75rem 1rem;
+        border-radius: .75rem;
+        background: hsl(var(--color-primary));
+        color: white;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a:focus-visible { outline: 3px solid hsl(var(--color-text-strong)); outline-offset: 4px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Novlearn</p>
+      <h1>Connexion indisponible</h1>
+      <p>Impossible de charger cette page pour le moment. Vérifie ta connexion, puis réessaie dans quelques instants.</p>
+      <a href="">Réessayer</a>
+    </main>
+  </body>
+</html>

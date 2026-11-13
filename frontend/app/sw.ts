@@ -22,7 +22,8 @@ const serwist = new Serwist({
   fallbacks: {
     entries: [
       {
-        url: "/offline",
+        // Static public assets are precached by @serwist/next at build time.
+        url: "/offline.html",
         matcher({ request }) {
           return request.destination === "document";
         },
