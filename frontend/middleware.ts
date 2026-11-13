@@ -123,7 +123,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api/ (API routes handle their own auth/CORS)
+     * - manifest.json and offline.html (public PWA assets)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|workbox-.*\\.js|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|workbox-.*\\.js|api/|manifest\\.json$|offline\\.html$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

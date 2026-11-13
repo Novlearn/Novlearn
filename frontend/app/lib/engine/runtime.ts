@@ -17,7 +17,16 @@ export async function runEngine(operation: EngineOperation, payload: JsonObject,
         try {
             const result = await host.run(JSON.stringify({ protocolVersion: 1, requestId: randomUUID(), operation, payload }), { signal });
             if (!result.ok) {
-                console.error("[Engine] Remote operation failed", { operation, error: result.error });
+                console.error("[Engine] Remote operation failed", {
+                    operation, error: result.error, requestId: result.requestId,
+                    elapsedMs: result.metrics.elapsedMs, queuedMs: result.metrics.queuedMs,
+                });
+                if (result.error === "busy")
+                    throw new EngineError(429, "Le service d’exercices est occupé. Réessayez dans quelques instants.");
+                if (result.error === "timeout")
+                    throw new EngineError(504, "Le calcul de l’exercice a pris trop de temps. Réessayez.");
+                if (result.error === "protocol-error")
+                    throw new EngineError(502, "La réponse du service d’exercices est invalide. Réessayez plus tard.");
                 throw new EngineError(503, "Engine est indisponible ou a interrompu le calcul.");
             }
             return result.value;
