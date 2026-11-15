@@ -1,2 +1,2 @@
 // Same exact archive as the Next.js backend.
-export const ENGINE_ARTIFACT_SHA256 = "6d1d52f38297d6f91be0eaa4aea57eb63f61973eae4cc83d86fd0aa6651dd85a";
+export const ENGINE_ARTIFACT_SHA256 = "0a691f331ac1fb6c5cc33157414998a7907ab1e362385d6a4720230ae36a98e6";
