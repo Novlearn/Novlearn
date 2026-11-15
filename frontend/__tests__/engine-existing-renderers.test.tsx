@@ -4,10 +4,16 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("../app/components/ui/MathInput", () => ({ MathInput: (p: any) => <input value={p.value} disabled={p.disabled} onChange={e => p.onChange(e.target.value)}/> }));
 vi.mock("../app/components/ui/MathText", () => ({ default: (p: any) => <span>{p.content}</span> }));
 vi.mock("../app/hooks/useAudioFeedback", () => ({ useAudioFeedback: () => ({ playSuccess: vi.fn(), playError: vi.fn() }) }));
+vi.mock("../app/lib/supabase", () => ({ supabase: {} }));
 import QuestionRenderer from "../app/renderers/QuestionRenderer";
 import MCQRenderer from "../app/renderers/MCQRenderer";
 import { formatExpectedAnswer, formatUnitFactorsForDisplay, hasDuplicateDisplayOptions } from "../app/utils/mathDisplay";
 let tree: ReactTestRenderer;
+function renderedText(): string {
+    const visit = (node: { children: Array<string | { children: unknown[] }> }): string =>
+        node.children.map(child => typeof child === "string" ? child : visit(child as { children: Array<string | { children: unknown[] }> })).join("");
+    return visit(tree.root as unknown as { children: Array<string | { children: unknown[] }> });
+}
 afterEach(() => { if (tree)
     act(() => tree.unmount()); vi.restoreAllMocks(); });
 const content = { question: "Question", correctAnswer: "private-never-delivered", answerFormat: "number" as const };
@@ -23,7 +29,7 @@ it("simplifies unit factors for QCM display and blocks a collision without chang
     expect(hasDuplicateDisplayOptions(displayed)).toBe(false);
     expect(hasDuplicateDisplayOptions([displayed[0]!, String.raw`$u_n=4^{n}$`])).toBe(true);
     const ids = ["correct", "distractor"];
-    act(() => { tree = create(<MCQRenderer content={{ question: "Q", options: [{ text: options[0] }, { text: String.raw`$u_n=4^n$` }] }} variables={{}} optionIds={ids} gradeAnswer={vi.fn()}/>); });
+    act(() => { tree = create(<MCQRenderer content={{ question: "Q", options: [{ text: options[0], correct: false }, { text: String.raw`$u_n=4^n$`, correct: false }] }} variables={{}} optionIds={ids} gradeAnswer={vi.fn()}/>); });
     expect(tree.root.findByProps({ role: "alert" }).children.join("")).toContain("plusieurs choix deviendraient identiques");
 });
 it("existing input sends raw MathLive input and trusts only the server verdict", async () => {
@@ -42,7 +48,7 @@ it("invalid and unavailable corrections neither finish the question nor consume 
     act(() => { tree = create(<QuestionRenderer content={content} variables={{}} gradeAnswer={grade} onSubmit={submit}/>); });
     await typeAndSubmit("(");
     expect(submit).not.toHaveBeenCalled();
-    expect(tree.root.findByProps({ role: "status" }).children.join("")).toContain("invalide");
+    expect(tree.root.findByProps({ role: "status" }).children.join("")).toContain("interprétée");
     await typeAndSubmit("2");
     expect(submit).not.toHaveBeenCalled();
     expect(tree.root.findByType("input").props.disabled).toBe(false);
@@ -55,14 +61,14 @@ it("states why a comparison is indeterminate without calling the answer wrong or
     expect(message).toContain("n’a pas permis de conclure");
     expect(message).toContain("pas comptée comme fausse");
     expect(message).not.toContain("Réessayez");
-    expect(JSON.stringify(tree.toJSON())).toContain("Essais comptés : 0/2 · restants : 2");
+    expect(renderedText()).toContain("Essais comptés : 0/2 · restants : 2");
 });
 it("reports a correction outage without charging an attempt", async () => {
     const grade = vi.fn().mockResolvedValue({ state: "error", feedbackCode: "technical-error", attempts: 0, finished: false });
     act(() => { tree = create(<QuestionRenderer content={content} variables={{}} gradeAnswer={grade}/>); });
     await typeAndSubmit("x+1");
     expect(tree.root.findByProps({ role: "status" }).children.join("")).toContain("momentanément indisponible");
-    expect(JSON.stringify(tree.toJSON())).toContain("Essais comptés : 0/2 · restants : 2");
+    expect(renderedText()).toContain("Essais comptés : 0/2 · restants : 2");
 });
 it("the first wrong answer keeps the existing retry, the second ends it", async () => {
     const grade = vi.fn().mockResolvedValueOnce({ state: "incorrect", attempts: 1, finished: false }).mockResolvedValueOnce({ state: "incorrect", attempts: 2, finished: true, reveal: { latex: "2" } });
@@ -70,7 +76,7 @@ it("the first wrong answer keeps the existing retry, the second ends it", async 
     act(() => { tree = create(<QuestionRenderer content={content} variables={{}} gradeAnswer={grade} onSubmit={submit}/>); });
     await typeAndSubmit("8");
     expect(submit).not.toHaveBeenCalled();
-    expect(JSON.stringify(tree.toJSON())).toContain("Essais comptés : 1/2 · restants : 1");
+    expect(renderedText()).toContain("Essais comptés : 1/2 · restants : 1");
     await typeAndSubmit("9");
     expect(submit).toHaveBeenCalledOnce();
     expect(submit).toHaveBeenCalledWith("9", false);

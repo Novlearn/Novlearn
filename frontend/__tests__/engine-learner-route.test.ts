@@ -47,7 +47,13 @@ vi.mock("../app/lib/engine/runtime", () => ({ runEngine: async (op: string, p: J
         }
         if (op === "projectPublicInstance")
             return e.projectPublicInstance(p.official as unknown as ExerciseInstance,{sampleGraphs:p.sampleGraphs===true});
-        if (state.gradeOverride) return { schemaVersion: 5, instanceId: String(p.submission.instanceId), questionId: String(p.submission.questionId), ...state.gradeOverride };
+        if (state.gradeOverride) {
+            const submission = p.submission;
+            if (!submission || typeof submission !== "object" || Array.isArray(submission) ||
+                typeof submission.instanceId !== "string" || typeof submission.questionId !== "string")
+                throw new Error("Synthetic grade override requires a question submission.");
+            return { schemaVersion: 5, instanceId: submission.instanceId, questionId: submission.questionId, ...state.gradeOverride };
+        }
         return e.gradeAnswer(p.official as unknown as ExerciseInstance, p.submission);
     } }));
 import { handleLearnerExercise } from "../app/lib/engine/learner";
@@ -147,9 +153,9 @@ it("preserves invalid input, two tries and a terminal verdict without client cor
     expect(state.calls).toBe(calls);
 });
 it.each([
-    ["invalid", "incomplete", "incomplete"],
+    ["invalid", "private-invalid-details", "other"],
     ["indeterminate", "algebra-proof-private", "indeterminate"],
-    ["error", "technical-error", "technical-error"],
+    ["error", "private-engine-exception", "technical-error"],
 ] as const)("publishes only a whitelisted feedback code for %s without consuming an attempt", async (gradeState, rawCode, safeCode) => {
     const opened = await (await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).json();
     const question = state.official!.elements.find(e => e.type === "question")!;
