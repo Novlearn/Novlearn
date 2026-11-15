@@ -12,6 +12,7 @@ import {
 import React, { useState } from "react";
 import { MathInput } from "../components/ui/MathInput";
 import MathText from "../components/ui/MathText";
+import { formatExpectedAnswer } from "../utils/mathDisplay";
 import { useAudioFeedback } from "../hooks/useAudioFeedback";
 import { QuestionContent, VariableValues } from "../types/exercise";
 import type { GradeQuestion, QuestionResult } from "../lib/engine/learnerTypes";
@@ -54,6 +55,27 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
 
   const revealedAnswer = serverResult?.reveal?.latex ?? serverResult?.reveal?.texts?.[0] ?? "";
 
+  const neutralFeedback = (result: QuestionResult) => {
+    switch (result.state) {
+      case "invalid":
+        switch (result.feedbackCode) {
+          case "empty-answer": return "Saisissez une réponse avant de valider.";
+          case "incomplete": return "La saisie est incomplète. Terminez l’expression avant de valider.";
+          case "invalid-syntax": return "La saisie n’est pas reconnue. Vérifiez qu’elle respecte le format attendu.";
+          case "unknown-symbol":
+          case "unsupported": return "Cette forme de réponse n’est pas reconnue. Vérifiez le format demandé.";
+          case "limit": return "La saisie dépasse les limites de correction. Réduisez-la ou demandez de l’aide.";
+          default: return "La saisie ne peut pas être interprétée. Vérifiez qu’elle est complète et au format demandé.";
+        }
+      case "indeterminate":
+        return "La comparaison n’a pas permis de conclure. Cette réponse n’est pas comptée comme fausse. Vous pouvez poursuivre avec une autre formulation ou demander de l’aide.";
+      case "error":
+        return "Le service de correction est momentanément indisponible. Votre réponse n’a pas été comptée. Réessayez plus tard.";
+      default:
+        return "Le service de correction est momentanément indisponible. Votre réponse n’a pas été comptée. Réessayez plus tard.";
+    }
+  };
+
   // Génère le placeholder adapté au format de réponse
   const getPlaceholder = (): string => {
     if (isFinished) {
@@ -83,22 +105,17 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
         const result=await gradeAnswer({format:content.answerFormat==="text"?"text":"latex",source:value});
         setServerResult(result);setAttempts(result.attempts);
         if(result.state!=="correct"&&result.state!=="incorrect") {
-          setCorrectionError(result.state==="invalid"?"La saisie est invalide ou incomplète.":"La correction ne peut pas conclure. Réessayez.");return;
+          setStatus("idle");setCorrectionError(neutralFeedback(result));return;
         }
         setStatus(result.state);setIsFinished(result.finished);
         if(result.state==="correct") playSuccess();else playError();
         if(result.finished) {setShowExplanation(true);onSubmit?.(value,result.state==="correct");}
-      }catch {setCorrectionError("La correction est indisponible. Réessayez.");}
+      }catch {setStatus("idle");setCorrectionError("Le service de correction est momentanément indisponible. Votre réponse n’a pas été comptée. Réessayez plus tard.");}
       finally {setPending(false);}
       })();
     }
 
     setCorrectionError("La correction est indisponible. Réessayez.");
-  };
-
-  const formatForDisplay = (latex: string) => {
-    if (!latex) return "";
-    return latex.includes("$") ? latex : `$${latex}$`;
   };
 
   return (
@@ -163,6 +180,12 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
             {pending ? "Vérification…" : isFinished ? "Validé" : attempts > 0 ? "Réessayer" : "Valider"}
           </button>
         </div>
+
+        {gradeAnswer && maxAttempts <= 2 && (
+          <p className="text-sm text-slate-600" aria-live="polite">
+            Essais comptés : {attempts}/{maxAttempts} · restants : {Math.max(0, maxAttempts - attempts)}
+          </p>
+        )}
 
         {correctionError && <p role="status" className="text-orange-700">{correctionError}</p>}
 
@@ -230,7 +253,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
               <span className="font-bold text-xl text-slate-800">
                 {/* The expected answer is revealed only by the server. */}
                 <MathText
-                  content={formatForDisplay(revealedAnswer)}
+                  content={formatExpectedAnswer(revealedAnswer)}
                   variables={{}} // On vide les variables car elles sont déjà substituées
                   displayMode={false}
                 />

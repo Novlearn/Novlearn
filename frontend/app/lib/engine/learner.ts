@@ -100,6 +100,16 @@ function reveal(official: ExerciseInstance, id: string) {
         return { optionIds: e.expected.optionIds, explanation };
     return undefined;
 }
+function publicFeedbackCode(state: QuestionResult["state"], code: string): NonNullable<QuestionResult["feedbackCode"]> {
+    if (state === "indeterminate") return "indeterminate";
+    if (state === "error") return "technical-error";
+    if (state !== "invalid") return "other";
+    const allowed = new Set(["empty-answer", "incomplete", "invalid-syntax", "unknown-symbol", "unsupported", "limit"]);
+    return allowed.has(code) ? code as NonNullable<QuestionResult["feedbackCode"]> : "other";
+}
+function publicErrorCode(code: string | undefined): "job-active" | "service-saturated" | "sampling-refused" | undefined {
+    return code === "job-active" || code === "service-saturated" || code === "sampling-refused" ? code : undefined;
+}
 type DisplayGraphResult = {
     ok: true;
     value: {
@@ -125,32 +135,32 @@ function attachGraphPlot(
         sampled.value.profile !== "display-graph-v1" ||
         sampled.value.instanceId !== official.instanceId ||
         sampled.value.elementId !== graphId || sampled.value.state === "unsupported")
-        throw new EngineError(422, "Rendu graphique indisponible.");
+        throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
     const source = official.elements.find(e => e.id === graphId);
     const target = projected.elements.find(e => e.id === graphId);
     if (!source || source.type !== "function-graph" ||
         !target || target.type !== "function-graph" ||
         source.functions.length !== target.functions.length)
-        throw new EngineError(422, "Rendu graphique indisponible.");
+        throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
     const xMin = target.window.xMin.numerator / target.window.xMin.denominator;
     const xMax = target.window.xMax.numerator / target.window.xMax.denominator;
     if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMin >= xMax)
-        throw new EngineError(422, "Rendu graphique indisponible.");
+        throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
     const values = target.functions.map(fn => {
         const series = sampled.value.series.find(s => s.id === fn.id);
-        if (!series) throw new EngineError(422, "Rendu graphique indisponible.");
+        if (!series) throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
         const points = new Map<number, number>();
         for (const point of series.points) {
             if (!Number.isInteger(point.sample) || point.sample < 0 || point.sample > 64 ||
                 !Number.isFinite(point.x) || !Number.isFinite(point.y) || points.has(point.sample))
-                throw new EngineError(422, "Rendu graphique indisponible.");
+                throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
             points.set(point.sample, point.y);
         }
         const connected = new Set<string>();
         for (const [from, to] of series.segments) {
             if (!Number.isInteger(from) || to !== from + 1 || from < 0 || to > 64 ||
                 !points.has(from) || !points.has(to))
-                throw new EngineError(422, "Rendu graphique indisponible.");
+                throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
             connected.add(`${from}:${to}`);
         }
         const plot = Array<number | null>(513).fill(null);
@@ -160,7 +170,7 @@ function attachGraphPlot(
             const y1 = points.get(from + 1)!;
             for (let step = 0; step <= 8; step++) {
                 const y = y0 + (y1 - y0) * step / 8;
-                if (!Number.isFinite(y)) throw new EngineError(422, "Rendu graphique indisponible.");
+                if (!Number.isFinite(y)) throw new EngineError(422, "Rendu graphique indisponible.", "sampling-refused");
                 plot[from * 8 + step] = Object.is(y, -0) ? 0 : y;
             }
         }
@@ -310,7 +320,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 throw new EngineError(503, "Correction indisponible.");
             const attempts = (s.state.questions[question.id]?.attempts ?? 0) + (grade.state === "incorrect" ? 1 : 0);
             const finished = grade.state === "correct" || grade.state === "incorrect" && (question.type === "mcq" || attempts >= 2);
-            s.state.questions[question.id] = { state: grade.state, attempts, finished, answer: body.answer, ...(finished ? { reveal: reveal(s.official, question.id) } : {}) };
+            s.state.questions[question.id] = { state: grade.state, feedbackCode: publicFeedbackCode(grade.state, grade.code), attempts, finished, answer: body.answer, ...(finished ? { reveal: reveal(s.official, question.id) } : {}) };
             // Private audit of counted submissions, retained with the official
             // replay. Neutral input is kept as the latest draft, never an attempt.
             if(grade.state==="correct"||grade.state==="incorrect") {
@@ -325,7 +335,8 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
         return NextResponse.json(result, { headers });
     }
     catch (e) {
-        return NextResponse.json({ error: e instanceof EngineError ? e.message : "Service d’exercices indisponible." }, { status: e instanceof EngineError ? e.status : 503, headers });
+        const code = e instanceof EngineError ? publicErrorCode(e.publicCode) : undefined;
+        return NextResponse.json({ error: e instanceof EngineError ? e.message : "Le service d’exercices est momentanément indisponible.", ...(code ? { code } : {}) }, { status: e instanceof EngineError ? e.status : 503, headers });
     }
 }
 

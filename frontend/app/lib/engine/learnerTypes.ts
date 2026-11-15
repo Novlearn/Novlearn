@@ -1,6 +1,7 @@
 import type { AnswerSubmission, CorrectionState, PublicInstance } from "novlearn-exercise-engine";
 export type QuestionResult = {
     state: CorrectionState;
+    feedbackCode?: "empty-answer" | "incomplete" | "invalid-syntax" | "unknown-symbol" | "unsupported" | "limit" | "indeterminate" | "technical-error" | "other";
     attempts: number;
     finished: boolean;
     answer?: AnswerSubmission["answer"];
