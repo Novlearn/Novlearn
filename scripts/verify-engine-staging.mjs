@@ -56,9 +56,9 @@ export async function verifyEngineStaging() {
       const parent = path.dirname(directory); assert.notEqual(parent, directory); directory = parent;
     }
   }
-  return { archive: manifest.archiveSha256, installedFiles: found.length };
+  return { archive: manifest.archiveSha256, packageVersion: manifest.packageVersion, installedFiles: found.length };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const proof = await verifyEngineStaging();
-  console.log(`PASS: exact Engine 0.2.1, ${proof.installedFiles} installed files, exports, lock and dependency versions.`);
+  console.log(`PASS: exact Engine ${proof.packageVersion}, ${proof.installedFiles} installed files, exports, lock and dependency versions.`);
 }
