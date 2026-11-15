@@ -3,7 +3,7 @@ import type { ExerciseInstance, JsonObject } from "novlearn-exercise-engine";
 import definition from "./fixtures/engine-pilot-definition.json";
 import definitions from "./fixtures/engine-pilots.json";
 vi.mock("server-only", () => ({}));
-const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, canonical: true, shadow:false, index: 0, seed: 42, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
+const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, canonical: true, shadow:false, index: 0, seed: 42, gradeOverride: null as any, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
 vi.mock("node:crypto", async (original) => ({ ...await original<typeof import("node:crypto")>(), randomInt: () => state.seed }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ getAll: () => [], set: vi.fn() }) }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: vi.fn() }));
@@ -47,6 +47,13 @@ vi.mock("../app/lib/engine/runtime", () => ({ runEngine: async (op: string, p: J
         }
         if (op === "projectPublicInstance")
             return e.projectPublicInstance(p.official as unknown as ExerciseInstance,{sampleGraphs:p.sampleGraphs===true});
+        if (state.gradeOverride) {
+            const submission = p.submission;
+            if (!submission || typeof submission !== "object" || Array.isArray(submission) ||
+                typeof submission.instanceId !== "string" || typeof submission.questionId !== "string")
+                throw new Error("Synthetic grade override requires a question submission.");
+            return { schemaVersion: 5, instanceId: submission.instanceId, questionId: submission.questionId, ...state.gradeOverride };
+        }
         return e.gradeAnswer(p.official as unknown as ExerciseInstance, p.submission);
     } }));
 import { handleLearnerExercise } from "../app/lib/engine/learner";
@@ -76,7 +83,7 @@ it("refuses oversized streamed bodies even with a small declared length",async()
     const request=new Request("http://127.0.0.1:3000/api/exercises",{method:"PATCH",headers:{origin:"http://127.0.0.1:3000",authorization:"Bearer synthetic","content-type":"application/json","content-length":"1"},body:JSON.stringify({action:"open",exerciseId:"122",answer:"x".repeat(20000)})});
     expect((await handleLearnerExercise(request)).status).toBe(413);expect(state.calls).toBe(0);
 });
-beforeEach(() => { state.index = 0; state.seed = 42; state.shadow=false; });
+beforeEach(() => { state.index = 0; state.seed = 42; state.shadow=false; state.gradeOverride=null; });
 it("requires canonical migration before opening an exercise, including for Admin",async()=>{
     state.canonical=false;state.active=false;state.shadow=true;
     expect((await handleLearnerExercise(req({action:"open",exerciseId:"1"}))).status).toBe(422);
@@ -111,6 +118,17 @@ it("restores an instance while that owner already has a calculation in progress"
         expect(response.status).toBe(200);expect((await response.json()).session.instance).toEqual(opened.session.instance);
     });
 });
+it("distinguishes a duplicate owner job from global saturation without changing the two-job cap", async () => {
+    await expect(withEngineJob("owner", async () => withEngineJob("owner", async () => undefined))).rejects.toMatchObject({ status: 429, publicCode: "job-active" });
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const first = withEngineJob("first", async () => gate);
+    const second = withEngineJob("second", async () => gate);
+    await Promise.resolve();
+    await expect(withEngineJob("third", async () => undefined)).rejects.toMatchObject({ status: 429, publicCode: "service-saturated" });
+    release();
+    await Promise.all([first, second]);
+});
 it("preserves invalid input, two tries and a terminal verdict without client correctness", async () => {
     const opened = await (await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).json();
     const sessionId = opened.session.sessionId;
@@ -133,6 +151,19 @@ it("preserves invalid input, two tries and a terminal verdict without client cor
     const calls = state.calls;
     await answer("999999");
     expect(state.calls).toBe(calls);
+});
+it.each([
+    ["invalid", "private-invalid-details", "other"],
+    ["indeterminate", "algebra-proof-private", "indeterminate"],
+    ["error", "private-engine-exception", "technical-error"],
+] as const)("publishes only a whitelisted feedback code for %s without consuming an attempt", async (gradeState, rawCode, safeCode) => {
+    const opened = await (await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).json();
+    const question = state.official!.elements.find(e => e.type === "question")!;
+    state.gradeOverride = { state: gradeState, code: rawCode };
+    const response = await handleLearnerExercise(req({ action: "answer", sessionId: opened.session.sessionId, questionId: question.id, answer: { format: "latex", source: "x" } }));
+    const session = (await response.json()).session;
+    expect(session.questions[question.id]).toMatchObject({ state: gradeState, feedbackCode: safeCode, attempts: 0, finished: false });
+    expect(JSON.stringify(session)).not.toContain(rawCode);
 });
 it.each(definitions.flatMap((_, index) => [0, 1, 42].map(seed => [index, seed] as const)))("existing delivery API: pilot %i seed %i, correct/incorrect/invalid and replay", async (index, seed) => {
     state.index = index;

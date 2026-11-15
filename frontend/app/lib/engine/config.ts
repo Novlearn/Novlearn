@@ -1,6 +1,6 @@
 import "server-only";
 export class EngineError extends Error {
-    constructor(readonly status: number, message: string) { super(message); }
+    constructor(readonly status: number, message: string, readonly publicCode?: string) { super(message); }
 }
 export const STAGING_REF = "tksvbkvfusrnxulpahky";
 export const PRODUCTION_REF = "abwipnppcrghdhwriyjp";

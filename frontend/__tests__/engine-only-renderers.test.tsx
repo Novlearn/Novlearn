@@ -9,6 +9,7 @@ vi.mock("../app/components/ui", () => ({ MathText: () => <span /> }));
 vi.mock("../app/hooks/useAudioFeedback", () => ({
   useAudioFeedback: () => ({ playSuccess: vi.fn(), playError: vi.fn() }),
 }));
+vi.mock("../app/lib/supabase", () => ({ supabase: {} }));
 import QuestionRenderer from "../app/renderers/QuestionRenderer";
 import MCQRenderer from "../app/renderers/MCQRenderer";
 import EquationRenderer from "../app/renderers/EquationRenderer";

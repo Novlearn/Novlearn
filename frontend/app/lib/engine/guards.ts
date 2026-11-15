@@ -30,8 +30,10 @@ const registry = globalThis as typeof globalThis & {
 };
 const jobs = registry.engineJobs ??= new Set();
 export async function withEngineJob<T>(owner: string, task: () => Promise<T>): Promise<T> {
-    if (jobs.has(owner) || jobs.size >= 2)
-        throw new EngineError(429, "Un calcul est déjà en cours. Réessayez après sa fin.");
+    if (jobs.has(owner))
+        throw new EngineError(429, "Un calcul est déjà en cours pour votre session.", "job-active");
+    if (jobs.size >= 2)
+        throw new EngineError(429, "Le service de calcul est temporairement saturé.", "service-saturated");
     jobs.add(owner);
     try {
         return await task();

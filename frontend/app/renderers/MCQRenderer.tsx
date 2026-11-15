@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import MathText from "../components/ui/MathText";
+import { formatUnitFactorsForDisplay, hasDuplicateDisplayOptions } from "../utils/mathDisplay";
+import { ExerciseRequestError } from "../lib/engine/learnerClient";
 import { MCQContent, RendererProps } from "../types/exercise";
 import type { GradeQuestion, QuestionResult } from "../lib/engine/learnerTypes";
 
@@ -53,11 +55,19 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
   // Option identity survives parent updates; display shuffling never changes it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content?.options,optionKey]);
+  const displayOptions = useMemo(() => shuffledOptions.map(option => ({ ...option, displayText: formatUnitFactorsForDisplay(option.text) })), [shuffledOptions]);
+  const duplicateDisplayOptions = hasDuplicateDisplayOptions(displayOptions.map(option => option.displayText));
   const [selectedIndices,setSelectedIndices]=useState<Set<number>>(()=>{
     const answer=initialResult?.answer;
     return new Set(answer?.format==="selection"?shuffledOptions.flatMap((o,i)=>o.optionId&&answer.optionIds.includes(o.optionId)?[i]:[]):[]);
   });
   const correctOption=(option:typeof shuffledOptions[number])=>!!option.optionId&&!!serverResult?.reveal?.optionIds?.includes(option.optionId);
+  const neutralFeedback = (result: QuestionResult) => result.state === "indeterminate"
+    ? "La comparaison n’a pas permis de conclure. Cette réponse n’est pas comptée comme fausse. Vous pouvez demander de l’aide."
+    : result.state === "invalid"
+      ? result.feedbackCode === "incomplete" ? "La sélection est incomplète. Complétez-la avant de valider."
+        : "La sélection ne peut pas être interprétée. Vérifiez les choix avant de valider."
+      : "Le service de correction est momentanément indisponible. Votre réponse n’a pas été comptée. Réessayez plus tard.";
 
   const handleSelect = (index: number) => {
     if (isFinished || pending) return;
@@ -85,10 +95,10 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
       try {
         const result=await gradeAnswer({format:"selection",optionIds:[...selectedIndices].map(i=>shuffledOptions[i].optionId!)});
         setServerResult(result);
-        if(result.state!=="correct"&&result.state!=="incorrect") {setCorrectionError("La correction ne peut pas conclure. Réessayez.");return;}
+        if(result.state!=="correct"&&result.state!=="incorrect") {setCorrectionError(neutralFeedback(result));return;}
         setStatus(result.state);setIsFinished(result.finished);setShowExplanation(result.finished);
         if(result.finished) onSubmit?.([...selectedIndices][0],result.state==="correct");
-      }catch {setCorrectionError("La correction est indisponible. Réessayez.");}finally {setPending(false);}
+      }catch (error) {setCorrectionError(error instanceof ExerciseRequestError ? error.message : "Le service de correction est momentanément indisponible. Votre réponse n’a pas été comptée. Réessayez plus tard.");}finally {setPending(false);}
       return;
     }
 
@@ -97,8 +107,8 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
 
   // Récupérer les bonnes réponses pour l'affichage de la correction
   const correctOptionTexts = useMemo(() => {
-    return shuffledOptions.filter((opt) => !!opt.optionId && !!serverResult?.reveal?.optionIds?.includes(opt.optionId)).map((opt) => opt.text);
-  }, [shuffledOptions,serverResult]);
+    return displayOptions.filter((opt) => !!opt.optionId && !!serverResult?.reveal?.optionIds?.includes(opt.optionId)).map((opt) => opt.displayText);
+  }, [displayOptions,serverResult]);
 
   // Si pas de contenu valide
   if (!content || !shuffledOptions.length) {
@@ -107,6 +117,12 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
         <p className="text-slate-500">Chargement du QCM...</p>
       </div>
     );
+  }
+
+  if (duplicateDisplayOptions) {
+    return <div role="alert" className="p-5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+      Ce QCM ne peut pas être affiché, car plusieurs choix deviendraient identiques. L’exercice doit être corrigé avant d’être proposé.
+    </div>;
   }
 
   return (
@@ -151,7 +167,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
       <div className="space-y-6 ml-0 md:ml-11">
         {/* --- LISTE DES OPTIONS --- */}
         <div className="space-y-3">
-          {shuffledOptions.map((option, index) => {
+          {displayOptions.map((option, index) => {
             const isSelected = selectedIndices.has(index);
             const isCorrect = correctOption(option);
             
@@ -196,7 +212,7 @@ const MCQRenderer: React.FC<MCQRendererProps> = ({
                 </span>
                 <div className="flex-grow text-slate-800">
                   <MathText
-                    content={option.text}
+                    content={option.displayText}
                     variables={variables}
                     className="text-slate-800"
                   />

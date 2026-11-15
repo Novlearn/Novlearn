@@ -141,7 +141,7 @@ it("Passer uses the server session and preserves the existing next callback", as
 it("opens a fresh instance after the server refuses a stale saved session", async () => {
   state.stored.set("novlearn-engine:owner:18:practice", "old");
   state.operation.mockRejectedValueOnce(
-    new ExerciseRequestError(409, "Ancienne archive"),
+    new ExerciseRequestError(409),
   );
   await mount();
   expect(state.operation).toHaveBeenNthCalledWith(1, {
