@@ -46,4 +46,4 @@ Les migrations historiques sont conservées dans `supabase/migrations/`. Pour in
 - [ARCHITECTURE.md](ARCHITECTURE.md) — architecture et composants
 - [README-TESTS.md](README-TESTS.md) — commandes et conventions de tests
 - [docs/supabase-environments.md](docs/supabase-environments.md) — staging, production et restauration
-- [docs/engine-0.2.1-integration.md](docs/engine-0.2.1-integration.md) — archive moteur actuellement intégrée
+- [docs/engine-0.2.3-integration.md](docs/engine-0.2.3-integration.md) — archive moteur actuellement intégrée

@@ -12,7 +12,7 @@
 - [Tests](../README-TESTS.md)
 - [Environnements Supabase](supabase-environments.md)
 - [Notifications](NOTIFICATIONS_SETUP.md)
-- [Moteur d'exercices 0.2.1](engine-0.2.1-integration.md)
+- [Moteur d'exercices 0.2.3](engine-0.2.3-integration.md)
 
 Les commandes et workflows déclarent les scripts automatisés. Les autres scripts sont lancés à la demande pour la sauvegarde/restauration locale, les contrôles d'environnement ou la qualification du moteur. Les commandes `correction:catalog:*` exportent, vérifient ou rejouent un corpus local privé sous `.local/exercise-correction/`; ce corpus ne doit pas être publié.
 
