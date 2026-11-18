@@ -30,7 +30,7 @@ jobs:
               exit 2
             fi
             if grep -Fq '[Engine] Remote operation failed' "$log_file"; then
-              grep -F '[Engine] Remote operation failed' "$log_file" | tail -n 50
+              grep -F -A 2 '[Engine] Remote operation failed' "$log_file" | tail -n 250
             else
               echo "No matching Engine failure entries in the current frontend log."
             fi
