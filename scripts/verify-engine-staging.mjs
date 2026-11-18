@@ -14,6 +14,11 @@ export async function verifyEngineStaging() {
   const releaseLabel = archiveName.slice('novlearn-exercise-engine-'.length, -'.tgz'.length);
   const manifest = JSON.parse(await readFile(path.join(root, 'vendor', `engine-release-${releaseLabel}.json`), 'utf8'));
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  const expectedDigest = '3068549e521d1f643ced8564e94ad645dbccace22a9ec173c912530af3766028';
+  assert.equal(releaseLabel, '0.2.3');
+  assert.equal(manifest.archiveSha256, expectedDigest);
+  const releaseChecksum = await readFile(path.join(root, 'vendor/engine-artifact-sha256.txt'), 'utf8');
+  assert.equal(releaseChecksum.trim().split(/\s+/)[0].toLowerCase(), expectedDigest);
   assert.equal(manifest.archive, archiveName);
   const archive = await readFile(path.join(root, 'vendor', manifest.archive));
   assert.equal(hash(archive), manifest.archiveSha256);
@@ -40,6 +45,9 @@ export async function verifyEngineStaging() {
   }
   const artifact = await readFile(path.join(root, 'app/lib/engine/artifact.ts'), 'utf8');
   assert.ok(artifact.includes(manifest.archiveSha256), 'artifact identity');
+  const duelArtifactPath = path.resolve(root, '..', 'duel-server/src/engineArtifact.ts');
+  const duelArtifact = await readFile(duelArtifactPath, 'utf8');
+  assert.ok(duelArtifact.includes(manifest.archiveSha256), 'duel host artifact identity');
   const lock = JSON.parse(await readFile(path.join(root, 'package-lock.json'), 'utf8'));
   assert.equal(lock.packages[''].dependencies['novlearn-exercise-engine'], specification);
   assert.equal(lock.packages['node_modules/novlearn-exercise-engine'].resolved, specification);

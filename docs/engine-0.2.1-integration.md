@@ -1,3 +1,5 @@
+> Document historique de l'intégration 0.2.1. La release actuellement intégrée est [Engine 0.2.3](engine-0.2.3-integration.md).
+
 # Moteur d'exercices 0.2.1
 
 Le frontend utilise l'archive locale `frontend/vendor/novlearn-exercise-engine-0.2.1.tgz`, déclarée dans `frontend/package.json`. Les anciennes archives et leurs manifestes sont conservés pour la compatibilité et la vérification de versions déjà livrées.
