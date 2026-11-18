@@ -1,0 +1,36 @@
+name: Read Novlearn staging Engine errors
+
+on:
+  push:
+    branches:
+      - fix/exercise-load-79-diagnostics
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-engine-log:
+    if: github.ref == 'refs/heads/fix/exercise-load-79-diagnostics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read matching frontend log lines
+        uses: appleboy/ssh-action@c4f70287fc37c43b14b30b407224bbbc8e8c6327
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30s
+          script: |
+            set -eu
+            log_file=/opt/novlearn-staging/frontend-staging.log
+            if [ ! -r "$log_file" ]; then
+              echo "Staging frontend log is unavailable."
+              exit 2
+            fi
+            if grep -Fq '[Engine] Remote operation failed' "$log_file"; then
+              grep -F '[Engine] Remote operation failed' "$log_file" | tail -n 50
+            else
+              echo "No matching Engine failure entries in the current frontend log."
+            fi
