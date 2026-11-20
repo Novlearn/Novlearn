@@ -8,6 +8,7 @@ import {
   getRandomExercise,
   saveDuelResult,
   recordAttempt,
+  reserveDuelExercises,
   ExerciseRow,
 } from "../db";
 import {
@@ -75,6 +76,7 @@ export class DuelRoom extends Room {
     this.s.correctionDisplaySeconds = CORRECTION_DISPLAY_SECONDS;
 
     const duel = await getDuel(this.duelId);
+    await reserveDuelExercises(this.duelId);
     this.s.player1Id = duel.player1_id;
     this.s.player2Id = duel.player2_id;
 
@@ -288,11 +290,11 @@ export class DuelRoom extends Room {
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   private async loadNextExercise() {
-    const { row, variables } = await getRandomExercise();
+    const { row, variables, versionId } = await getRandomExercise(this.duelId);
     this.currentExercise = row;
     this.currentVariables = variables;
     if(!row.catalog_id)throw new Error("Canonical Engine exercise required");
-    this.engineRound=await prepareEngineRound(row,this.duelId,++this.roundNumber);
+    this.engineRound=await prepareEngineRound(row,this.duelId,++this.roundNumber,versionId);
     this.solvedPlayers.clear();
     this.skipRequests.clear();
     console.log("[DuelRoom] loadNextExercise", {

@@ -94,7 +94,7 @@ it("requires canonical migration before opening an exercise, including for Admin
     expect(state.calls).toBe(0);
 });
 it("refuses legacy catalogue delivery through the Engine API", async () => { state.canonical = false; const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" })); expect(r.status).toBe(422); expect(state.calls).toBe(0); });
-it("refuses draft access by a student and forged verdict/snapshot fields", async () => { state.active = false; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(404); expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122", official: {} }))).status).toBe(400); });
+it("keeps Staging drafts available but refuses forged verdict/snapshot fields", async () => { state.active = false; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(200); expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122", official: {} }))).status).toBe(400); });
 it("refuses foreign origins and invalid authentication", async () => { expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }, "https://other.test"))).status).toBe(403); state.authError = true; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(401); });
 it("generates once, exposes only the projection and restores the stored instance", async () => {
     const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" }));

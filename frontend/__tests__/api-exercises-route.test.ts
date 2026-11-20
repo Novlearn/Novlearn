@@ -31,8 +31,9 @@ describe("GET /api/exercises access control", () => {
     state.filters = [];
     state.user = null;
     state.role = null;
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://unit.test";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
+    vi.stubEnv("APP_ENV", "staging");
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://tksvbkvfusrnxulpahky.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_secret_synthetic_local_test";
   });
 
   it("rejects anonymous callers", async () => {
@@ -47,7 +48,7 @@ describe("GET /api/exercises access control", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.exercises[0]).not.toHaveProperty("content");
-    expect(state.filters).toEqual(["catalog_id.is.null,active_version_id.not.is.null"]);
+    expect(state.filters).toEqual([]);
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
 

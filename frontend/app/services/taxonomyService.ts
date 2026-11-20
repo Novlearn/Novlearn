@@ -5,12 +5,12 @@ export interface CompetenceConfig {
   name: string;
   /** Nom du chapitre (dénormalisé depuis la jointure SQL) */
   chapter: string;
-  chapter_id: number;
+  chapter_id: string;
   max_points: number;
 }
 
 interface ChapterRow {
-  id: number;
+  id: string;
   name: string;
   order_index: number;
   emoji: string;
@@ -20,7 +20,7 @@ interface CompetenceRow {
   id: string;
   name: string;
   max_points: number;
-  chapter_id: number;
+  chapter_id: string;
   chapters: { name: string } | null;
 }
 

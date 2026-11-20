@@ -1,5 +1,5 @@
 import { randomUUID, randomInt } from "node:crypto";
-import { supabase, type ExerciseRow } from "./db";
+import { assertDuelDatabaseEnvironment, supabase, type ExerciseRow } from "./db";
 import { supportsDuelElements } from "./engineEligibility";
 import { ENGINE_ARTIFACT_SHA256 } from "./engineArtifact";
 /** Private server transport to the same bounded official host as training. */
@@ -45,14 +45,22 @@ export async function engineRun(operation: string, payload: unknown): Promise<an
         throw new Error("Engine operation failed");
     return result.value;
 }
-export async function prepareEngineRound(row: ExerciseRow, duelId: number, round: number) {
+export async function prepareEngineRound(row: ExerciseRow, duelId: number, round: number, selectedVersionId?: string) {
+    assertDuelDatabaseEnvironment();
     const engineArchiveSha256=ENGINE_ARTIFACT_SHA256;
     if(!/^[a-f0-9]{64}$/.test(engineArchiveSha256??"")) throw new Error("Engine archive identity unavailable");
-    const parent = await supabase.from("exercises").select("active_version_id").eq("id", row.id).single();
-    if (parent.error || !parent.data?.active_version_id)
-        throw new Error("Unpublished exercise");
-    const version = await supabase.from("exercise_versions").select("id,definition,editorial_status").eq("id", parent.data.active_version_id).eq("exercise_id", row.id).single();
-    if (version.error || version.data?.editorial_status !== "published")
+    const staging = (process.env.APP_ENV ?? "development") !== "production";
+    let versionQuery = supabase.from("exercise_versions").select("id,definition,editorial_status").eq("exercise_id", row.id);
+    // The reservation is the authority for a running duel. Never reselect the
+    // parent's current revision: sync/archive may happen between rounds.
+    if (!selectedVersionId) throw new Error("Selected exercise version unavailable");
+    const reservation = await supabase.from("duel_catalog_reservations")
+        .select("exercise_version_id").eq("duel_id", duelId).eq("exercise_id", row.id)
+        .eq("exercise_version_id", selectedVersionId).single();
+    if (reservation.error || !reservation.data) throw new Error("Duel reservation unavailable");
+    versionQuery = versionQuery.eq("id", selectedVersionId);
+    const version = await versionQuery.single();
+    if (version.error || !version.data || (!staging && version.data.editorial_status !== "published"))
         throw new Error("Unpublished version");
     if (!supportsDuelElements(version.data.definition?.elements))
         throw new Error("Exercise incompatible with duel presentation");

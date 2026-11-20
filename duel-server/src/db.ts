@@ -3,6 +3,28 @@ import { supportsDuelElements } from "./engineEligibility";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
+const APP_ENV = process.env.APP_ENV || "development";
+const PRODUCTION_CATALOG_SYNC_ENFORCED = process.env.PRODUCTION_CATALOG_SYNC_ENFORCED === "true";
+const STAGING_REF = "tksvbkvfusrnxulpahky";
+const PRODUCTION_REF = "abwipnppcrghdhwriyjp";
+
+export function assertDuelDatabaseEnvironment(): void {
+  if (process.env.NODE_ENV === "test") return;
+  let host: string;
+  try { host = new URL(SUPABASE_URL).hostname; }
+  catch { throw new Error("Duel database environment is not configured"); }
+  const expected = APP_ENV === "production" ? `${PRODUCTION_REF}.supabase.co` : `${STAGING_REF}.supabase.co`;
+  const localDevelopment = APP_ENV === "development" && ["localhost", "127.0.0.1"].includes(host);
+  if (!["development", "staging", "production"].includes(APP_ENV) || (!localDevelopment && host !== expected) || !SUPABASE_SERVICE_KEY)
+    throw new Error("Duel database credentials do not match APP_ENV");
+  if (!localDevelopment && SUPABASE_SERVICE_KEY.startsWith("ey")) {
+    try {
+      const claims = JSON.parse(Buffer.from(SUPABASE_SERVICE_KEY.split(".")[1], "base64url").toString("utf8"));
+      if (claims.ref !== (APP_ENV === "production" ? PRODUCTION_REF : STAGING_REF) || claims.role !== "service_role")
+        throw new Error("Duel database credentials do not match APP_ENV");
+    } catch { throw new Error("Duel database credentials do not match APP_ENV"); }
+  }
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -26,6 +48,7 @@ export interface ExerciseElement {
 export interface ExerciseRow {
   catalog_id?:string|null;
   active_version_id?:string|null;
+  legacy_version_id?:string|null;
   id: number;
   title: string;
   app_title?: string | null;
@@ -111,38 +134,84 @@ export async function getPlayerName(userId: string): Promise<string> {
 
 // ─── Exercises ────────────────────────────────────────────────────────────────
 
-export async function getRandomExercise(): Promise<{
-  row: ExerciseRow;
-  variables: Record<string, number>;
-}> {
-  const { data, error } = await supabase
+const exerciseMetadataColumns = () => "id,title,app_title,chapter,difficulty,catalog_id,active_version_id,admin_archived_at" +
+  (APP_ENV === "production" ? ",legacy_version_id" : "");
+
+async function listEligibleDuelExercises(): Promise<Array<{ row: ExerciseRow; versionId: string }>> {
+  assertDuelDatabaseEnvironment();
+  let exercises = supabase
     .from("exercises")
-    .select("id, title, app_title, chapter, difficulty, catalog_id, active_version_id")
-    // Service role bypasses RLS. Never admit an unpublished canonical draft.
-    .or("and(catalog_id.not.is.null,active_version_id.not.is.null)")
+    .select(exerciseMetadataColumns())
     // For duels we only want "flash" exercises that do NOT require a calculator.
     // Column names follow the Supabase schema (case‑sensitive).
     .eq("Is_Flash", true)
     .eq("Need_Calculator", false);
+  if (APP_ENV === "staging" || APP_ENV === "development") {
+    exercises = exercises.not("catalog_id", "is", null);
+  } else if (APP_ENV === "production" && PRODUCTION_CATALOG_SYNC_ENFORCED) {
+    exercises = exercises.not("active_version_id", "is", null).is("admin_archived_at", null);
+  } else {
+    exercises = exercises.or("active_version_id.not.is.null,legacy_version_id.not.is.null").is("admin_archived_at", null);
+  }
+  const { data, error } = await exercises;
 
   if (error || !data?.length) throw new Error("No exercises available");
 
-  const canonical = data.filter(e => e.catalog_id && e.active_version_id);
-  const eligibleIds = new Set<string>();
+  const staging = APP_ENV === "staging" || APP_ENV === "development";
+  const rows = data as unknown as ExerciseRow[];
+  const canonical = rows.filter(e => staging ? e.catalog_id : (e.active_version_id || (!PRODUCTION_CATALOG_SYNC_ENFORCED && e.legacy_version_id)));
+  const selectedVersionByExercise = new Map<number, string>();
   if (canonical.length) {
     const versions = await supabase.from("exercise_versions")
-      .select("id,exercise_id,editorial_status,elements:definition->elements")
-      .in("id", canonical.map(e => e.active_version_id));
+      .select("id,exercise_id,revision,editorial_status,elements:definition->elements")
+      .in(staging ? "exercise_id" : "id", staging ? canonical.map(e => e.id) : canonical.map(e => e.active_version_id || e.legacy_version_id))
+      .order("revision", { ascending: false });
     if (versions.error) throw new Error("Duel exercise versions unavailable");
     for (const version of versions.data ?? []) {
-      if (version.editorial_status === "published" && supportsDuelElements(version.elements) &&
-          canonical.some(e => e.id === version.exercise_id && e.active_version_id === version.id))
-        eligibleIds.add(version.id);
+      if (staging && selectedVersionByExercise.has(version.exercise_id)) continue;
+      if ((staging || version.editorial_status === "published") && supportsDuelElements(version.elements) &&
+          canonical.some(e => e.id === version.exercise_id && (staging || (e.active_version_id || e.legacy_version_id) === version.id))) {
+        selectedVersionByExercise.set(version.exercise_id, version.id);
+      }
     }
   }
-  const available = data.filter(e => e.catalog_id && eligibleIds.has(e.active_version_id));
-  if (!available.length) throw new Error("No exercises available");
-  const row = available[Math.floor(Math.random()*available.length)] as ExerciseRow;
+  const available = canonical.filter(e => selectedVersionByExercise.has(e.id));
+  if (!available.length) return [];
+  return available.map(row => ({ row: row as ExerciseRow, versionId: selectedVersionByExercise.get(row.id)! }));
+}
+
+export async function reserveDuelExercises(duelId: number): Promise<void> {
+  const existing = await supabase.from("duel_catalog_reservations").select("exercise_id").eq("duel_id", duelId).limit(1);
+  if (existing.error) throw new Error("Duel catalogue reservations unavailable");
+  if (existing.data?.length) return;
+  const candidates = await listEligibleDuelExercises();
+  if (!candidates.length) throw new Error("No exercises available");
+  const { error } = await supabase.from("duel_catalog_reservations").insert(
+    candidates.slice(0, 100).map(({ row, versionId }) => ({ duel_id: duelId, exercise_id: row.id, exercise_version_id: versionId })),
+  );
+  if (error) throw new Error("Duel catalogue reservation failed");
+}
+
+export async function getRandomExercise(duelId: number): Promise<{
+  row: ExerciseRow;
+  versionId: string;
+  variables: Record<string, number>;
+}> {
+  assertDuelDatabaseEnvironment();
+  const reserved = await supabase.from("duel_catalog_reservations").select("exercise_id,exercise_version_id").eq("duel_id", duelId);
+  if (reserved.error) throw new Error("Duel catalogue reservations unavailable");
+  let choice: { row: ExerciseRow; versionId: string } | undefined;
+  if (reserved.data?.length) {
+    const selected = reserved.data[Math.floor(Math.random() * reserved.data.length)];
+    const { data, error } = await supabase.from("exercises").select(exerciseMetadataColumns()).eq("id", selected.exercise_id).single();
+    if (error || !data) throw new Error("Reserved duel exercise unavailable");
+    choice = { row: data as unknown as ExerciseRow, versionId: selected.exercise_version_id };
+  } else {
+    const items = await listEligibleDuelExercises();
+    if (!items.length) throw new Error("No exercises available");
+    choice = items[Math.floor(Math.random() * items.length)];
+  }
+  const row = choice.row;
   const variables = {};
-  return { row, variables };
+  return { row, versionId: choice.versionId, variables };
 }

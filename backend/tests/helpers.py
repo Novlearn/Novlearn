@@ -38,13 +38,27 @@ class _QB:
     def select(self, *a, **k): return self
     def eq(self, *a, **k): return self
     def neq(self, *a, **k): return self
+    def filter(self, column, operator, value):
+        if operator in {"is", "not.is"} and value == "null":
+            def matches(row):
+                return (row.get(column) is None) == (operator == "is")
+            self._list_data = [row for row in self._list_data if matches(row)]
+            if self._single_data and not matches(self._single_data):
+                self._single_data = None
+        return self
+    def not_(self, column, operator, value):
+        if column == "catalog_id" and operator == "is" and value == "null":
+            self._list_data = [row for row in self._list_data if row.get(column) is not None]
+            if self._single_data and self._single_data.get(column) is None:
+                self._single_data = None
+        return self
     def in_(self, *a, **k): return self
     def order(self, *a, **k): return self
     def or_(self, filters):
         # Model the eligibility rule on synthetic rows, before any limit/single.
-        assert filters == "catalog_id.is.null,active_version_id.not.is.null"
+        assert filters == "catalog_id.is.null,active_version_id.not.is.null,legacy_version_id.not.is.null"
         def available(row):
-            return row.get("catalog_id") is None or row.get("active_version_id") is not None
+            return row.get("catalog_id") is None or row.get("active_version_id") is not None or row.get("legacy_version_id") is not None
         self._list_data = [row for row in self._list_data if available(row)]
         if self._single_data and not available(self._single_data):
             self._single_data = None
@@ -101,6 +115,12 @@ def make_supabase(**tables) -> MagicMock:
             list_data, single_data = cfg
         else:
             list_data, single_data = cfg, None
+        # General recommendation fixtures describe the available source catalogue.
+        # Transition tests pass explicit NULL identities for historical cases.
+        if name == "exercises":
+            list_data = [dict(row, catalog_id=row.get("catalog_id", "synthetic-catalogue")) for row in list_data]
+            if single_data is not None:
+                single_data = dict(single_data, catalog_id=single_data.get("catalog_id", "synthetic-catalogue"))
         return _QB(list_data, single_data)
 
     client.table.side_effect = _table

@@ -17,7 +17,7 @@ def exercise(canonical=False, active=False):
             "chapter": "Chapter", "difficulty": "easy", "competences": ["comp"]}
 
 
-@pytest.mark.parametrize("canonical,active,expected", [(False, False, True), (True, False, False), (True, True, True)])
+@pytest.mark.parametrize("canonical,active,expected", [(False, False, False), (True, False, True), (True, True, True)])
 def test_all_server_selectors(monkeypatch, canonical, active, expected):
     monkeypatch.setattr("recommandation.get_competences", lambda **kw: {"comp": 10})
     monkeypatch.setattr("chapter_selection.CHAPTER_DB_ALIASES", {})
@@ -53,7 +53,26 @@ def test_real_postgrest_builder_preserves_chapter_difficulty_and_id():
         client.session = httpx.Client(base_url="http://127.0.0.1:1", transport=httpx.MockTransport(handle))
         available_exercises(client, "id").eq("chapter", "Chapter").eq("difficulty", "Facile").eq("id", 9).execute()
     params = requests[0].url.params
-    assert params["or"] == "(catalog_id.is.null,active_version_id.not.is.null)"
+    assert params["catalog_id"] == "not.is.null"
     assert params["chapter"] == "eq.Chapter"
     assert params["difficulty"] == "eq.Facile"
     assert params["id"] == "eq.9"
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_production_real_builder_keeps_archival_and_compatible_history(monkeypatch, strict):
+    from config import settings
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setenv("PRODUCTION_CATALOG_SYNC_ENFORCED", str(strict).lower())
+    requests = []
+    with SyncPostgrestClient("http://127.0.0.1:1") as client:
+        client.session.close()
+        client.session = httpx.Client(base_url="http://127.0.0.1:1", transport=httpx.MockTransport(
+            lambda request: (requests.append(request), httpx.Response(200, json=[]))[1]))
+        available_exercises(client, "id").eq("id", 9).execute()
+    params = requests[0].url.params
+    assert params["admin_archived_at"] == "is.null"
+    if strict:
+        assert params["active_version_id"] == "not.is.null"
+    else:
+        assert params["or"] == "(catalog_id.is.null,active_version_id.not.is.null,legacy_version_id.not.is.null)"
