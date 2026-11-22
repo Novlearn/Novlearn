@@ -4,6 +4,8 @@
  * dans l'environnement de test Node.js.
  */
 import { vi } from "vitest";
+// The runtime boundary is enforced by Next.js; Vitest runs server routes in Node.
+vi.mock("server-only", () => ({}));
 
 // Mock next/navigation (non disponible hors du routeur Next.js)
 vi.mock("next/navigation", () => ({

@@ -1,4 +1,3 @@
-import { AVAILABLE_EXERCISES_FILTER } from "../../lib/exerciseAvailability";
 import {
   ArrowRight,
   CheckCircle2,
@@ -144,11 +143,11 @@ export const ExerciseLoader: React.FC<ExerciseLoaderProps> = ({
         }
         let id=exerciseId;
         if(!result&&!id) {
-          const count=await supabase.from("exercises").select("id",{count:"exact",head:true}).or(AVAILABLE_EXERCISES_FILTER);
+          const count=await supabase.from("exercises").select("id",{count:"exact",head:true});
           if(count.error)throw count.error;
           if(!count.count)throw new Error("La base d'exercices est vide.");
           const offset=Math.floor(Math.random()*count.count);
-          const selected=await supabase.from("exercises").select("id").or(AVAILABLE_EXERCISES_FILTER).order("id").range(offset,offset).maybeSingle();
+          const selected=await supabase.from("exercises").select("id").order("id").range(offset,offset).maybeSingle();
           if(selected.error||!selected.data)throw new Error("Exercice indisponible.");
           id=String(selected.data.id);
         }

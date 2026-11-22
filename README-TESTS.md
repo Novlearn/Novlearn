@@ -17,3 +17,9 @@ cd backend && python -m pytest
 Pour cibler un test, utiliser `python -m pytest tests/test_streak.py -v` dans `backend/`, ou `npm test -- <fichier>` dans le service Node concerné. Les tests du backend et du frontend couvrent notamment la recommandation, les notifications, les routes et le rendu d'exercices; ceux du serveur de duels couvrent l'état et les règles de match.
 
 Les tests utilisent des clients Supabase simulés et ne requièrent pas de base distante. Les vérifications de déploiement ou de staging qui requièrent des secrets ou un VPS ne sont pas des tests locaux.
+
+La [répétition Production historique](docs/catalogue-production-delivery.md)
+dispose aussi de scénarios PostgreSQL/PostgREST/Engine réellement locaux sous
+`supabase/tests/`. Ils requièrent les conteneurs isolés et le socle source indiqués
+dans ce document ; ils ne contactent pas les bases hébergées et ne font pas partie
+des validations éditoriales obligatoires à chaque synchronisation.

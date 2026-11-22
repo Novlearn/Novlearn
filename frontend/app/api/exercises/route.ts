@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { AVAILABLE_EXERCISES_FILTER } from "../../lib/exerciseAvailability";
+import { PRODUCTION_REF, STAGING_REF } from "../../lib/engine/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +45,26 @@ const getSupabaseAdmin = () => {
 
   if (!url || !key) {
     throw new Error("Supabase URL or Service Role Key is missing.");
+  }
+  const environment = process.env.APP_ENV ?? (process.env.NODE_ENV === "development" ? "development" : "");
+  const parsedUrl = new URL(url);
+  const projectRef = parsedUrl.hostname.split(".")[0];
+  const localDevelopment = environment === "development" && ["localhost", "127.0.0.1"].includes(parsedUrl.hostname);
+  const expectedRef = environment === "production" ? PRODUCTION_REF : STAGING_REF;
+  if (!(["development", "staging", "production"].includes(environment)) ||
+      (environment === "development" && projectRef === PRODUCTION_REF) ||
+      (!localDevelopment && environment !== "development" && projectRef !== expectedRef)) {
+    throw new Error("Supabase URL does not match APP_ENV.");
+  }
+  if (key.startsWith("ey")) {
+    try {
+      const claims = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8"));
+      if ((!localDevelopment && claims.ref !== projectRef) || claims.role !== "service_role") throw new Error();
+    } catch {
+      throw new Error("Supabase service key does not match APP_ENV.");
+    }
+  } else if (!key.startsWith("sb_secret_")) {
+    throw new Error("Supabase service key format is invalid.");
   }
   return createClient(url, key);
 };
@@ -121,11 +141,20 @@ export async function GET(request: Request) {
         },
       };
     } else {
-      const { data, error } = await supabase
+      const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
+      let query = supabase
         .from("exercises")
-        .select("id, title, app_title, chapter, difficulty, created_at")
-        .or(AVAILABLE_EXERCISES_FILTER)
-        .order("created_at", { ascending: false });
+        .select("id, title, app_title, chapter, difficulty, created_at");
+      if (ref === PRODUCTION_REF) {
+        query = query.is("admin_archived_at", null);
+        query = process.env.PRODUCTION_CATALOG_SYNC_ENFORCED === "true" ?
+          query.not("active_version_id", "is", null) :
+          query.or("catalog_id.is.null,active_version_id.not.is.null,legacy_version_id.not.is.null");
+      } else if (ref !== STAGING_REF && ref !== PRODUCTION_REF &&
+          (process.env.APP_ENV ?? (process.env.NODE_ENV === "development" ? "development" : "")) !== "development") {
+        throw new Error("Supabase environment is not recognized");
+      }
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
 

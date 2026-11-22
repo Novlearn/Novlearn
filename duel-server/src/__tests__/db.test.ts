@@ -17,6 +17,7 @@ const { mockFrom, mockSupabaseAuth } = vi.hoisted(() => {
   const mockChain = {
     select: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
@@ -47,6 +48,7 @@ import {
   getDuel,
   getPlayerName,
   getRandomExercise,
+  reserveDuelExercises,
   recordAttempt,
   saveDuelResult,
   verifySupabaseToken,
@@ -199,54 +201,76 @@ describe("saveDuelResult", () => {
  */
 function setExercisesResult(exercises: unknown[], error: unknown = null, versions: unknown[] = []) {
   const result = { data: exercises, error };
-  const chain = {
-    select: vi.fn((columns: string) => {
-      expect(columns.split(",").map(c => c.trim())).not.toContain("content");
-      return chain;
-    }),
+  const exerciseChain: any = {
+    select: vi.fn().mockReturnThis(),
     or: vi.fn((filter: string) => {
       expect(filter).toBe("and(catalog_id.not.is.null,active_version_id.not.is.null)");
       result.data = exercises?.filter((row: any) => row.catalog_id != null && row.active_version_id != null);
-      return chain;
+      return exerciseChain;
+    }),
+    not: vi.fn((column: string) => {
+      if (column === "catalog_id") result.data = exercises?.filter((row: any) => row.catalog_id != null);
+      return exerciseChain;
     }),
     eq: vi.fn().mockReturnThis(),
-    then: (onFulfilled: (v: unknown) => unknown) =>
-      Promise.resolve(result).then(onFulfilled),
-    catch: (onRejected: (e: unknown) => unknown) =>
-      Promise.resolve(result).catch(onRejected),
+    then: (onFulfilled: (v: unknown) => unknown) => Promise.resolve(result).then(onFulfilled),
+    catch: (onRejected: (e: unknown) => unknown) => Promise.resolve(result).catch(onRejected),
     finally: (cb: () => void) => Promise.resolve(result).finally(cb),
   };
-  const versionChain = {select:vi.fn().mockReturnThis(), in:vi.fn().mockResolvedValue({data:versions,error:null})};
-  mockFrom.mockImplementation((table?: string) => (table === "exercise_versions" ? versionChain : chain) as any);
+  const versionChain = {select:vi.fn().mockReturnThis(), in:vi.fn().mockReturnThis(), order:vi.fn().mockResolvedValue({data:versions,error:null})};
+  const reservationChain: any = {
+    select:vi.fn().mockReturnThis(),eq:vi.fn().mockReturnThis(),limit:vi.fn().mockReturnThis(),
+    insert:vi.fn().mockResolvedValue({error:null}),
+    then:(resolve:(v:unknown)=>unknown)=>Promise.resolve({data:[],error:null}).then(resolve),
+    catch:(reject:(e:unknown)=>unknown)=>Promise.resolve({data:[],error:null}).catch(reject),
+    finally:(callback:()=>void)=>Promise.resolve({data:[],error:null}).finally(callback),
+  };
+  mockFrom.mockImplementation((table?: string) => (table === "exercise_versions" ? versionChain : table === "duel_catalog_reservations" ? reservationChain : exerciseChain) as any);
 }
 
 describe("getRandomExercise / Engine only",()=>{
   const row={id:1,title:"Exercice",catalog_id:"catalog",active_version_id:"v1"};
   const version={id:"v1",exercise_id:1,editorial_status:"published",elements:[{type:"question"}]};
-  it("selects a published canonical exercise without generating browser variables",async()=>{
+  it("selects the latest usable Staging revision without generating browser variables",async()=>{
     setExercisesResult([row],null,[version]);
-    expect(await getRandomExercise()).toEqual({row,variables:{}});
+    expect(await getRandomExercise(7)).toEqual({row,versionId:"v1",variables:{}});
   });
-  it("rejects legacy and unpublished rows even when Engine flag is disabled",async()=>{
+  it("rejects legacy exercises and accepts Staging drafts even when Engine flag is disabled",async()=>{
     vi.stubEnv("NOVLEARN_ENGINE_ENABLED","false");
-    for(const candidate of [{...row,catalog_id:null},{...row,active_version_id:null}]){
+    for(const candidate of [{...row,catalog_id:null}]){
       setExercisesResult([candidate],null,[version]);
-      await expect(getRandomExercise()).rejects.toThrow("No exercises available");
+      await expect(getRandomExercise(7)).rejects.toThrow("No exercises available");
     }
+    setExercisesResult([{...row,active_version_id:null}],null,[{...version,editorial_status:"draft"}]);
+    await expect(getRandomExercise(7)).resolves.toMatchObject({versionId:"v1"});
   });
-  it("refuses incompatible elements and non-published versions",async()=>{
-    for(const candidate of [{...version,elements:[{type:"mcq"}]},{...version,editorial_status:"draft"}]){
+  it("refuses incompatible elements but accepts a Staging draft version",async()=>{
+    for(const candidate of [{...version,elements:[{type:"mcq"}]}]){
       setExercisesResult([row],null,[candidate]);
-      await expect(getRandomExercise()).rejects.toThrow("No exercises available");
+      await expect(getRandomExercise(7)).rejects.toThrow("No exercises available");
     }
+    setExercisesResult([row],null,[{...version,editorial_status:"draft"}]);
+    await expect(getRandomExercise(7)).resolves.toMatchObject({versionId:"v1"});
   });
   it("fails closed when version lookup fails",async()=>{
     setExercisesResult([row],null,[]);
-    await expect(getRandomExercise()).rejects.toThrow("No exercises available");
+    await expect(getRandomExercise(7)).rejects.toThrow("No exercises available");
   });
   it("rejects empty catalogues and database errors",async()=>{
-    setExercisesResult([]);await expect(getRandomExercise()).rejects.toThrow();
-    setExercisesResult([],Error("DB"));await expect(getRandomExercise()).rejects.toThrow();
+    setExercisesResult([]);await expect(getRandomExercise(7)).rejects.toThrow();
+    setExercisesResult([],Error("DB"));await expect(getRandomExercise(7)).rejects.toThrow();
+  });
+});
+
+describe("reserveDuelExercises",()=>{
+  it("pins each selected Staging revision before the duel starts",async()=>{
+    const row={id:14,title:"Exercice",catalog_id:"catalog-14",active_version_id:null};
+    const version={id:"draft-v3",exercise_id:14,revision:3,editorial_status:"draft",elements:[{type:"question"}]};
+    setExercisesResult([row],null,[version]);
+    await expect(reserveDuelExercises(42)).resolves.toBeUndefined();
+    const fromCalls=mockFrom.mock.calls as unknown as Array<[string]>;
+    const reservations=mockFrom.mock.results.find((_,index)=>fromCalls[index][0]==="duel_catalog_reservations")?.value;
+    expect(reservations.insert).toHaveBeenCalledWith([{duel_id:42,exercise_id:14,exercise_version_id:"draft-v3"}]);
   });
 });
 

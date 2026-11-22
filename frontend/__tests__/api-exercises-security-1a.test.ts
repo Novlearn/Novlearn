@@ -26,8 +26,9 @@ describe('Lot 1A GET privileged exercise access', () => {
   beforeEach(() => {
     state.user = { id: 'caller', is_anonymous: false }; state.role = 'admin';
     state.authError = null; state.profileError = null; state.queries = [];
-    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://unit.test');
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-only');
+    vi.stubEnv('APP_ENV','staging');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://tksvbkvfusrnxulpahky.supabase.co');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'sb_secret_synthetic_local_test');
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });

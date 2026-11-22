@@ -63,6 +63,18 @@ type Saved = {
     status: string;
     expires_at: string;
 };
+type ExecutionParent = {
+    id: number;
+    title: string;
+    app_title: string | null;
+    chapter: string;
+    difficulty: string | null;
+    competences: string[] | null;
+    catalog_id: string | null;
+    active_version_id: string | null;
+    legacy_version_id?: string | null;
+    admin_archived_at: string | null;
+};
 const json = (v: unknown) => v as JsonValue;
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[a-f\d]{8}-([a-f\d]{4}-){3}[a-f\d]{12}$/i.test(v);
 async function checkGuestLimit(admin:SupabaseClient,owner:string) {
@@ -230,19 +242,24 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 }
                 if (!/^\d{1,18}$/.test(String(body.exerciseId)))
                     throw new EngineError(400, "Exercice invalide.");
-                const parent = checked(await admin.from("exercises").select("id,title,app_title,chapter,difficulty,competences,catalog_id,active_version_id,admin_archived_at").eq("id", body.exerciseId).maybeSingle());
+                const staging = identityEnvironment() === "staging";
+                const columns = "id,title,app_title,chapter,difficulty,competences,catalog_id,active_version_id,admin_archived_at" +
+                    (staging ? "" : ",legacy_version_id");
+                const parent = checked(await admin.from("exercises").select(columns).eq("id", body.exerciseId).maybeSingle()) as unknown as ExecutionParent | null;
                 if (!parent)
                     throw new EngineError(404, "Exercice introuvable.");
-                if (!parent.catalog_id)
+                if (staging && !parent.catalog_id)
                     throw new EngineError(422, "Cet exercice doit être migré vers Engine.");
-                const preview = !parent.active_version_id;
-                if (parent.admin_archived_at || preview && profile?.role !== "admin")
+                const selectedVersion = parent.active_version_id ||
+                    (process.env.PRODUCTION_CATALOG_SYNC_ENFORCED !== "true" ? parent.legacy_version_id : null);
+                const preview = staging;
+                if (!staging && (parent.admin_archived_at || !selectedVersion))
                     throw new EngineError(404, "Exercice indisponible.");
                 let query = admin.from("exercise_versions").select("id,definition,definition_sha256,editorial_status").eq("exercise_id", parent.id);
-                query = preview ? query.order("revision", { ascending: false }).limit(1) : query.eq("id", parent.active_version_id);
+                query = preview ? query.order("revision", { ascending: false }).limit(1) : query.eq("id", selectedVersion);
                 const versions = checked(await query);
                 const version = versions?.[0];
-                if (!version || (!preview && version.editorial_status !== "published"))
+                if (!version || (!staging && !preview && version.editorial_status !== "published"))
                     throw new EngineError(404, "Version indisponible.");
                 const mode = ["practice", "placement", "ds"].includes(body.mode) ? body.mode : "practice";
                 if (mode === "placement")
@@ -251,7 +268,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                     if (!uuid(body.dsId))
                         throw new EngineError(400, "DS invalide.");
                     const ds = checked(await admin.from("ds").select("id,deadline,competence_ids").eq("id", body.dsId).eq("user_id", user.id).maybeSingle());
-                    if (!ds || Date.parse(ds.deadline) <= Date.now() || !parent.competences.some((c: string) => ds.competence_ids.includes(c)))
+                    if (!ds || Date.parse(ds.deadline) <= Date.now() || !(parent.competences ?? []).some((c: string) => ds.competence_ids.includes(c)))
                         throw new EngineError(403, "Exercice hors du DS.");
                 }
                 const expired = checked(await admin.from("engine_exercise_sessions").select("*").eq("owner_id", user.id).eq("status", "active").lt("expires_at", new Date().toISOString()).limit(16)) as Saved[];
@@ -338,5 +355,12 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
         const code = e instanceof EngineError ? publicErrorCode(e.publicCode) : undefined;
         return NextResponse.json({ error: e instanceof EngineError ? e.message : "Le service d’exercices est momentanément indisponible.", ...(code ? { code } : {}) }, { status: e instanceof EngineError ? e.status : 503, headers });
     }
+}
+
+function identityEnvironment(): "staging" | "production" {
+    const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname.split(".")[0];
+    if (ref === "tksvbkvfusrnxulpahky") return "staging";
+    if (ref === "abwipnppcrghdhwriyjp") return "production";
+    throw new EngineError(503, "Configuration de l’environnement indisponible.");
 }
 

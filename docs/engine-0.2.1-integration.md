@@ -4,6 +4,14 @@
 
 Le frontend utilise l'archive locale `frontend/vendor/novlearn-exercise-engine-0.2.1.tgz`, déclarée dans `frontend/package.json`. Les anciennes archives et leurs manifestes sont conservés pour la compatibilité et la vérification de versions déjà livrées.
 
+Pour le schéma historique Production, les prérequis, les tests exécutés et les
+paramètres de livraison sont dans le [lot de transition](catalogue-production-delivery.md).
+Au relevé du 13 novembre, Admin et le registre Staging restent en **0.1.8** avec
+Engine désactivé côté registre. Ne pas partager implicitement un host/token
+0.2.1 avec ce consommateur 0.1.8 : la compatibilité des contrats de données ne
+remplace pas l'égalité des empreintes de transport. Le host Production doit
+encore être qualifié par le responsable avant activation.
+
 ## Vérification
 
 Depuis `frontend/`, installer les dépendances avec `npm ci`, puis lancer `npm run verify:engine`, `npm test`, `npx tsc --noEmit` et `npm run build`. La CI exécute ces contrôles sur les PR et les pushes vers `develop` et `main` (`.github/workflows/ci.yml`).
