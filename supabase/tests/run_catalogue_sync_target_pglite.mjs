@@ -6,6 +6,8 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
+// Set NOVLEARN_TEST_NO_EXERCISE_CONTENT=1 to exercise the content-free target schema.
+const contentFreeTarget = process.env.NOVLEARN_TEST_NO_EXERCISE_CONTENT === '1';
 const migration = await readFile(
   resolve(root, 'supabase/migrations/20261112123000_catalogue_sync_target.sql'),
   'utf8',
@@ -79,7 +81,7 @@ try {
     CREATE TABLE public.exercises(
       id bigint PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now(), title text NOT NULL, chapter text NOT NULL,
       difficulty text, competences text[], app_title text, "Is_Flash" boolean, "Need_Calculator" boolean,
-      content jsonb NOT NULL DEFAULT '{}'::jsonb, catalog_id uuid UNIQUE, active_version_id uuid,
+      ${contentFreeTarget ? '' : "content jsonb NOT NULL DEFAULT '{}'::jsonb,"} catalog_id uuid UNIQUE, active_version_id uuid,
       admin_archived_at timestamptz, publication_epoch bigint NOT NULL DEFAULT 0,
       synced_fingerprint_sha256 text, synced_at timestamptz
     );
@@ -144,6 +146,16 @@ try {
     CREATE FUNCTION public.apply_exercise_publication(jsonb,text,text) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
   `);
   await db.exec(publicationHeader);
+  if (contentFreeTarget) {
+    await db.exec(`
+      GRANT CREATE ON SCHEMA public TO novlearn_publication_writer;
+      ALTER FUNCTION public.inspect_exercise_publication(jsonb,text) OWNER TO novlearn_publication_writer;
+      ALTER FUNCTION public.apply_exercise_publication(jsonb,text,text) OWNER TO novlearn_publication_writer;
+      REVOKE CREATE ON SCHEMA public FROM novlearn_publication_writer;
+      GRANT EXECUTE ON FUNCTION public.inspect_exercise_publication(jsonb,text),
+        public.apply_exercise_publication(jsonb,text,text) TO novlearn_publication_executor;
+    `);
+  }
   try {
     await db.exec(migration);
   } catch (error) {
@@ -215,6 +227,26 @@ try {
     'novlearn_catalogue_sync_writer','public.exercise_versions','UPDATE') AS can_update`);
   if (versionPrivileges.rows[0]?.can_update !== false) {
     throw new Error('catalogue writer retained UPDATE privilege on immutable versions');
+  }
+  if (!contentFreeTarget) {
+    const exerciseId = 'f4000000-0000-4000-8000-000000000001';
+    await db.query(`UPDATE public.exercises SET content='{"legacy":"preserved"}'::jsonb WHERE catalog_id=$1`, [exerciseId]);
+    await db.exec('SET ROLE novlearn_catalogue_sync_writer');
+    try {
+      await db.query(`UPDATE public.exercises SET synced_fingerprint_sha256=synced_fingerprint_sha256 WHERE catalog_id=$1`, [exerciseId]);
+      try {
+        await db.query(`UPDATE public.exercises SET content='{"legacy":"changed"}'::jsonb WHERE catalog_id=$1`, [exerciseId]);
+        throw new Error('catalogue writer unexpectedly changed legacy exercise content');
+      } catch (error) {
+        if (error.code !== '42501') throw error;
+      }
+    } finally {
+      await db.exec('RESET ROLE');
+    }
+    const preservedContent = await db.query(`SELECT content FROM public.exercises WHERE catalog_id=$1`, [exerciseId]);
+    if (preservedContent.rows[0]?.content?.legacy !== 'preserved') {
+      throw new Error('catalogue writer did not preserve legacy exercise content');
+    }
   }
 
   // Submit two differently identified batches for the same inspected exercise

@@ -86,8 +86,16 @@ CREATE POLICY catalogue_target_writer_flashcards ON public.flashcards
 
 GRANT SELECT(id,catalog_id,active_version_id,admin_archived_at,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",publication_epoch)
   ON public.exercises TO novlearn_catalogue_sync_writer;
-GRANT INSERT(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",content)
-  ON public.exercises TO novlearn_catalogue_sync_writer;
+DO $exercise_content_grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.exercises'::regclass
+      AND attname='content' AND NOT attisdropped) THEN
+    EXECUTE 'GRANT INSERT(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",content) ON public.exercises TO novlearn_catalogue_sync_writer';
+  ELSE
+    EXECUTE 'GRANT INSERT(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator") ON public.exercises TO novlearn_catalogue_sync_writer';
+  END IF;
+END;
+$exercise_content_grant$;
 GRANT UPDATE(title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",active_version_id,admin_archived_at,synced_fingerprint_sha256,synced_at)
   ON public.exercises TO novlearn_catalogue_sync_writer;
 GRANT UPDATE ON public.exercises TO novlearn_catalogue_sync_writer;
@@ -101,12 +109,21 @@ CREATE POLICY catalogue_target_writer_exercises ON public.exercises
 -- their UPDATE; a trigger prevents the bounded writer from replacing it.
 CREATE FUNCTION novlearn_admin_private.preserve_target_legacy_content()
 RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
+DECLARE new_row jsonb; old_row jsonb;
 BEGIN
   IF current_user='novlearn_catalogue_sync_writer' THEN
-    IF TG_OP='INSERT' AND NEW.content IS DISTINCT FROM '{}'::jsonb OR
-       TG_OP='UPDATE' AND (NEW.content IS DISTINCT FROM OLD.content OR NEW.id IS DISTINCT FROM OLD.id OR
-         NEW.catalog_id IS DISTINCT FROM OLD.catalog_id) THEN
-      RAISE EXCEPTION 'target writer must preserve historical content and identity' USING ERRCODE='42501';
+    new_row:=to_jsonb(NEW);
+    IF TG_OP='INSERT' THEN
+      IF new_row ? 'content' AND new_row->'content' IS DISTINCT FROM '{}'::jsonb THEN
+        RAISE EXCEPTION 'target writer must preserve historical content and identity' USING ERRCODE='42501';
+      END IF;
+    ELSIF TG_OP='UPDATE' THEN
+      old_row:=to_jsonb(OLD);
+      IF new_row->'content' IS DISTINCT FROM old_row->'content' OR
+         new_row->'id' IS DISTINCT FROM old_row->'id' OR
+         new_row->'catalog_id' IS DISTINCT FROM old_row->'catalog_id' THEN
+        RAISE EXCEPTION 'target writer must preserve historical content and identity' USING ERRCODE='42501';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
@@ -588,10 +605,22 @@ BEGIN
           header:=novlearn_admin_private.publication_header(mapped_definition);
           SELECT * INTO exercise_row FROM public.exercises WHERE catalog_id=catalog_uuid FOR UPDATE;
           IF NOT FOUND THEN
-            INSERT INTO public.exercises(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",content)
-            VALUES(nextval('public.exercises_id_seq'),catalog_uuid,header->>'title',header->>'chapter',header->>'difficulty',
-              ARRAY(SELECT jsonb_array_elements_text(header->'competences')),header->>'app_title',(header->>'Is_Flash')::boolean,
-              (header->>'Need_Calculator')::boolean,'{}'::jsonb) RETURNING * INTO exercise_row;
+            IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.exercises'::regclass
+                AND attname='content' AND NOT attisdropped) THEN
+              EXECUTE 'INSERT INTO public.exercises(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator",content)
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *'
+                INTO exercise_row
+                USING nextval('public.exercises_id_seq'),catalog_uuid,header->>'title',header->>'chapter',header->>'difficulty',
+                  ARRAY(SELECT jsonb_array_elements_text(header->'competences')),header->>'app_title',(header->>'Is_Flash')::boolean,
+                  (header->>'Need_Calculator')::boolean,'{}'::jsonb;
+            ELSE
+              EXECUTE 'INSERT INTO public.exercises(id,catalog_id,title,chapter,difficulty,competences,app_title,"Is_Flash","Need_Calculator")
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *'
+                INTO exercise_row
+                USING nextval('public.exercises_id_seq'),catalog_uuid,header->>'title',header->>'chapter',header->>'difficulty',
+                  ARRAY(SELECT jsonb_array_elements_text(header->'competences')),header->>'app_title',(header->>'Is_Flash')::boolean,
+                  (header->>'Need_Calculator')::boolean;
+            END IF;
           END IF;
           -- The exercise row is locked above and a batch-wide advisory lock
           -- serializes imports. Reading an immutable version needs SELECT only;
@@ -725,12 +754,52 @@ GRANT EXECUTE ON FUNCTION novlearn_admin_private.inspect_catalogue_sync_item(tex
   novlearn_admin_private.observe_catalogue_sync_batch(uuid,text),
   novlearn_admin_private.apply_catalogue_sync_batch(uuid,text,jsonb)
   TO novlearn_publication_executor;
-DO $$ BEGIN
-  IF to_regprocedure('public.inspect_exercise_publication(jsonb,text)') IS NOT NULL THEN
-    REVOKE ALL ON FUNCTION public.inspect_exercise_publication(jsonb,text) FROM novlearn_publication_executor;
+DO $publication_function_ownership$
+DECLARE function_oid oid; function_owner text;
+BEGIN
+  FOREACH function_oid IN ARRAY ARRAY[
+    to_regprocedure('public.inspect_exercise_publication(jsonb,text)')::oid,
+    to_regprocedure('public.apply_exercise_publication(jsonb,text,text)')::oid
+  ] LOOP
+    IF function_oid IS NOT NULL THEN
+      SELECT pg_get_userbyid(proowner) INTO function_owner FROM pg_proc WHERE oid=function_oid;
+      IF function_owner NOT IN ('postgres','novlearn_publication_writer') THEN
+        RAISE EXCEPTION 'unexpected owner for legacy publication function: %',function_owner;
+      END IF;
+    END IF;
+  END LOOP;
+  IF EXISTS(SELECT FROM pg_auth_members WHERE roleid='novlearn_publication_writer'::regrole
+      AND member='postgres'::regrole AND grantor='postgres'::regrole) THEN
+    RAISE EXCEPTION 'unexpected pre-existing migration membership for novlearn_publication_writer';
   END IF;
-  IF to_regprocedure('public.apply_exercise_publication(jsonb,text,text)') IS NOT NULL THEN
-    REVOKE ALL ON FUNCTION public.apply_exercise_publication(jsonb,text,text) FROM novlearn_publication_executor;
+END;
+$publication_function_ownership$;
+
+-- The legacy publication RPCs are owned by this bounded role on Supabase.
+-- Use a temporary, grantor-scoped SET membership so the executor grant can be
+-- revoked without depending on postgres owning those functions.
+GRANT novlearn_publication_writer TO postgres WITH INHERIT FALSE, SET TRUE;
+SET LOCAL ROLE novlearn_publication_writer;
+DO $$ BEGIN
+  IF to_regprocedure('public.inspect_exercise_publication(jsonb,text)') IS NOT NULL AND
+     (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid=to_regprocedure('public.inspect_exercise_publication(jsonb,text)'))='novlearn_publication_writer' THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.inspect_exercise_publication(jsonb,text) FROM novlearn_publication_executor';
+  END IF;
+  IF to_regprocedure('public.apply_exercise_publication(jsonb,text,text)') IS NOT NULL AND
+     (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid=to_regprocedure('public.apply_exercise_publication(jsonb,text,text)'))='novlearn_publication_writer' THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.apply_exercise_publication(jsonb,text,text) FROM novlearn_publication_executor';
+  END IF;
+END $$;
+RESET ROLE;
+REVOKE novlearn_publication_writer FROM postgres GRANTED BY postgres;
+DO $$ BEGIN
+  IF to_regprocedure('public.inspect_exercise_publication(jsonb,text)') IS NOT NULL AND
+     (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid=to_regprocedure('public.inspect_exercise_publication(jsonb,text)'))='postgres' THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.inspect_exercise_publication(jsonb,text) FROM novlearn_publication_executor';
+  END IF;
+  IF to_regprocedure('public.apply_exercise_publication(jsonb,text,text)') IS NOT NULL AND
+     (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid=to_regprocedure('public.apply_exercise_publication(jsonb,text,text)'))='postgres' THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.apply_exercise_publication(jsonb,text,text) FROM novlearn_publication_executor';
   END IF;
 END $$;
 GRANT EXECUTE ON FUNCTION novlearn_admin_private.catalogue_sync_target_state(text,uuid),
