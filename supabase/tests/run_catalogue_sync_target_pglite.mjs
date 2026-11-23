@@ -193,12 +193,99 @@ try {
     console.error(`target qualification failed: ${error.message}; code=${error.code}; detail=${error.detail}; context=${error.where}`);
     throw new Error('target qualification assertions failed');
   }
+
+  // The function owner needs SELECT and INSERT on immutable versions, but no
+  // UPDATE privilege. SELECT FOR UPDATE is deliberately unsupported; ordinary
+  // reads plus the locked parent exercise and transaction advisory lock cover
+  // the importer path.
+  await db.exec('SET ROLE novlearn_catalogue_sync_writer');
+  try {
+    const readable = await db.query(`SELECT id FROM public.exercise_versions WHERE revision=3`);
+    if (readable.rows.length !== 1) throw new Error('writer cannot read the imported immutable version');
+    try {
+      await db.query(`SELECT id FROM public.exercise_versions WHERE revision=3 FOR UPDATE`);
+      throw new Error('writer unexpectedly has SELECT FOR UPDATE on immutable versions');
+    } catch (error) {
+      if (error.code !== '42501') throw error;
+    }
+  } finally {
+    await db.exec('RESET ROLE');
+  }
+  const versionPrivileges = await db.query(`SELECT has_table_privilege(
+    'novlearn_catalogue_sync_writer','public.exercise_versions','UPDATE') AS can_update`);
+  if (versionPrivileges.rows[0]?.can_update !== false) {
+    throw new Error('catalogue writer retained UPDATE privilege on immutable versions');
+  }
+
+  // Submit two differently identified batches for the same inspected exercise
+  // concurrently through the actual executor role. PGlite runs one engine
+  // connection, so it checks overlapping RPC submissions and stale-plan
+  // handling; the SQL advisory locks serialize independent PostgreSQL sessions.
+  const activeVersion = await db.query(`SELECT v.definition FROM public.exercises e
+    JOIN public.exercise_versions v ON v.id=e.active_version_id WHERE e.catalog_id=$1`,
+    ['f4000000-0000-4000-8000-000000000001']);
+  const sourceDefinition = structuredClone(activeVersion.rows[0].definition);
+  sourceDefinition.catalogue.chapter = 'source-chapter-a';
+  sourceDefinition.catalogue.skills = ['source-skill-b'];
+  const concurrentPayload = {
+    kind: 'exercise', catalogId: 'f4000000-0000-4000-8000-000000000001', fingerprint: 'c'.repeat(64),
+    action: 'upsert', versionId: 'f6000000-0000-4000-8000-000000000003', revision: '3',
+    dependencies: [
+      { kind: 'chapter', catalogId: 'f1000000-0000-4000-8000-000000000001', sourceRef: 'source-chapter-a' },
+      { kind: 'competence', catalogId: 'f2000000-0000-4000-8000-000000000001', sourceId: 'source-skill-b' },
+    ],
+    data: {
+      catalogId: 'f4000000-0000-4000-8000-000000000001', revision: 3, definition: sourceDefinition,
+      header: { title: 'ignored', chapter: 'ignored', difficulty: 'easy', competences: [],
+        appTitle: 'ignored', isFlash: false, needCalculator: false },
+    },
+  };
+  const concurrentInspection = await db.query(
+    `SELECT novlearn_admin_private.inspect_catalogue_sync_item('exercise',$1::uuid) AS inspection`,
+    [concurrentPayload.catalogId],
+  );
+  const concurrentItems = [{ payload: concurrentPayload, inspection: concurrentInspection.rows[0].inspection }];
+  const concurrentBatches = [
+    'f5000000-0000-4000-8000-000000000010',
+    'f5000000-0000-4000-8000-000000000011',
+  ];
+  await db.exec('SET ROLE novlearn_publication_executor');
+  try {
+    const submit = (batch) => db.query(
+      `SELECT novlearn_admin_private.apply_catalogue_sync_batch($1::uuid,$2::text,$3::jsonb) AS receipt`,
+      [batch, 'd'.repeat(64), JSON.stringify(concurrentItems)],
+    );
+    const outcomes = await Promise.allSettled(concurrentBatches.map(submit));
+    const committed = outcomes.filter(outcome => outcome.status === 'fulfilled');
+    const rejected = outcomes.filter(outcome => outcome.status === 'rejected');
+    if (committed.length !== 1 || rejected.length !== 1 || rejected[0].reason.code !== '40001' ||
+        committed[0].value.rows[0]?.receipt?.items?.[0]?.result !== 'unchanged') {
+      throw new Error(`concurrent same-identity submissions were not serialized safely: ${JSON.stringify(
+        outcomes.map(outcome => outcome.status === 'fulfilled'
+          ? { status: outcome.status, receipt: outcome.value.rows[0]?.receipt }
+          : { status: outcome.status, code: outcome.reason.code }),
+      )}`);
+    }
+    const observations = await Promise.all(concurrentBatches.map(batch => db.query(
+      `SELECT novlearn_admin_private.observe_catalogue_sync_batch($1::uuid,$2::text) AS observation`,
+      [batch, 'd'.repeat(64)],
+    )));
+    const states = observations.map(result => result.rows[0]?.observation?.state).sort();
+    if (states.join(',') !== 'committed,not_applied') {
+      throw new Error(`concurrent submissions left unexpected receipts: ${JSON.stringify(states)}`);
+    }
+  } finally {
+    await db.exec('RESET ROLE');
+  }
+
   const result = await db.query(`
     SELECT r.observation->>'state' AS state, r.observation->'receipt'->>'batchId' AS batch_id,
            (SELECT count(*) FROM public.chapters WHERE catalog_id::text LIKE 'f1000000-%') AS test_chapters,
            (SELECT count(*) FROM public.competences WHERE catalog_id::text LIKE 'f2000000-%') AS test_competences,
            (SELECT count(*) FROM public.flashcards WHERE catalog_id::text LIKE 'f3000000-%') AS test_flashcards,
-           (SELECT count(*) FROM public.exercises WHERE catalog_id::text LIKE 'f4000000-%') AS test_exercises
+           (SELECT count(*) FROM public.exercises WHERE catalog_id::text LIKE 'f4000000-%') AS test_exercises,
+           (SELECT count(*) FROM public.exercise_versions v JOIN public.exercises e ON e.id=v.exercise_id
+             WHERE e.catalog_id::text LIKE 'f4000000-%') AS test_versions
       FROM (SELECT novlearn_admin_private.observe_catalogue_sync_batch(
         'f5000000-0000-4000-8000-000000000001',repeat('a',64)
       ) AS observation) r
@@ -208,7 +295,8 @@ try {
     result.rows[0]?.test_chapters !== 2 ||
     result.rows[0]?.test_competences !== 1 ||
     result.rows[0]?.test_flashcards !== 1 ||
-    result.rows[0]?.test_exercises !== 1
+    result.rows[0]?.test_exercises !== 1 ||
+    result.rows[0]?.test_versions !== 3
   ) {
     throw new Error(`target qualification assertions failed: ${JSON.stringify(result.rows[0])}`);
   }
