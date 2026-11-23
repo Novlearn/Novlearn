@@ -118,7 +118,7 @@ FOR EACH ROW EXECUTE FUNCTION novlearn_admin_private.preserve_target_legacy_cont
 GRANT SELECT(id,exercise_id,revision,definition,engine_contract,generation_version,canonicalization_version,
   editorial_status,publication_origin,approval_fingerprint_sha256)
   ON public.exercise_versions TO novlearn_catalogue_sync_writer;
-GRANT UPDATE ON public.exercise_versions TO novlearn_catalogue_sync_writer;
+REVOKE UPDATE ON public.exercise_versions FROM novlearn_catalogue_sync_writer;
 GRANT SELECT ON public.exercise_versions TO novlearn_catalogue_sync_writer;
 GRANT INSERT(exercise_id,revision,definition,engine_contract,generation_version,canonicalization_version,
   definition_sha256,approval_fingerprint_sha256,editorial_status,publication_origin,published_at)
@@ -351,6 +351,46 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Chapter names are copied into exercise and flashcard metadata. A rename
+  -- may update those rows only when each active reference is explicitly in
+  -- this batch; exercises also need a newer immutable version whose mapped
+  -- definition carries the new chapter name. Validate before the first write.
+  FOR item IN SELECT value FROM jsonb_array_elements(p_items)
+    WHERE value->'payload'->>'kind'='chapter' AND value->'payload'->>'action'='upsert' LOOP
+    payload:=item->'payload';catalog_uuid:=(payload->>'catalogId')::uuid;data_value:=payload->'data';
+    SELECT * INTO chapter_row FROM public.chapters WHERE catalog_id=catalog_uuid FOR UPDATE;
+    IF FOUND AND chapter_row.name IS DISTINCT FROM data_value->>'name' THEN
+      FOR active_ref IN SELECT e.catalog_id,e.active_version_id
+        FROM public.exercises e WHERE e.admin_archived_at IS NULL AND e.chapter=chapter_row.name LOOP
+        IF active_ref.catalog_id IS NULL OR NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements(p_items) x
+          WHERE x->'payload'->>'kind'='exercise' AND x->'payload'->>'catalogId'=active_ref.catalog_id::text
+            AND x->'payload'->>'action'='upsert'
+            AND EXISTS (SELECT 1 FROM jsonb_array_elements(x->'payload'->'dependencies') d
+              WHERE d->>'kind'='chapter' AND d->>'catalogId'=catalog_uuid::text)
+            AND CASE WHEN x->'payload'->'data'->>'revision' ~ '^[1-9][0-9]{0,8}$' THEN
+              (x->'payload'->'data'->>'revision')::integer > coalesce(
+                (SELECT v.revision FROM public.exercise_versions v WHERE v.id=active_ref.active_version_id),0)
+              ELSE false END
+        ) THEN
+          RAISE EXCEPTION 'chapter rename requires every active referencing exercise with a newer revision in the same batch'
+            USING ERRCODE='23503';
+        END IF;
+      END LOOP;
+      FOR active_ref IN SELECT f.catalog_id FROM public.flashcards f
+        WHERE f.admin_archived_at IS NULL AND f.chapter=chapter_row.name LOOP
+        IF active_ref.catalog_id IS NULL OR NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements(p_items) x
+          WHERE x->'payload'->>'kind'='flashcard' AND x->'payload'->>'catalogId'=active_ref.catalog_id::text
+            AND x->'payload'->>'action'='upsert' AND x->'payload'->'data'->>'chapterCatalogId'=catalog_uuid::text
+        ) THEN
+          RAISE EXCEPTION 'chapter rename requires every active referencing flashcard in the same batch'
+            USING ERRCODE='23503';
+        END IF;
+      END LOOP;
+    END IF;
+  END LOOP;
+
   -- Reject an archive only when a relationship remains active after applying
   -- the full proposed batch. Historical references are preserved.
   FOR item IN SELECT value FROM jsonb_array_elements(p_items) WHERE value->'payload'->>'action'='archive' LOOP
@@ -467,10 +507,6 @@ BEGIN
               emoji=coalesce(data_value->>'emoji','📚'),order_index=coalesce(nullif(data_value->>'orderIndex','null')::integer,order_index),editorial_status='published',
               admin_archived_at=NULL,ready_at=NULL,ready_by=NULL,synced_fingerprint_sha256=payload->>'fingerprint',synced_at=clock_timestamp()
               WHERE id=chapter_row.id RETURNING * INTO chapter_row;
-            IF prior_chapter_name IS DISTINCT FROM chapter_row.name THEN
-              UPDATE public.flashcards SET chapter=chapter_row.name WHERE chapter=prior_chapter_name;
-              UPDATE public.exercises SET chapter=chapter_row.name WHERE chapter=prior_chapter_name AND catalog_id IS NOT NULL;
-            END IF;
           END IF;
           target_id:=chapter_row.id::text;
         ELSIF item_kind='competence' THEN
@@ -557,12 +593,18 @@ BEGIN
               ARRAY(SELECT jsonb_array_elements_text(header->'competences')),header->>'app_title',(header->>'Is_Flash')::boolean,
               (header->>'Need_Calculator')::boolean,'{}'::jsonb) RETURNING * INTO exercise_row;
           END IF;
-          SELECT * INTO version_row FROM public.exercise_versions WHERE exercise_id=exercise_row.id AND revision=revision_number FOR UPDATE;
+          -- The exercise row is locked above and a batch-wide advisory lock
+          -- serializes imports. Reading an immutable version needs SELECT only;
+          -- FOR UPDATE would require UPDATE privileges and hide it under RLS.
+          SELECT * INTO version_row FROM public.exercise_versions WHERE exercise_id=exercise_row.id AND revision=revision_number;
           IF FOUND AND version_row.definition IS DISTINCT FROM mapped_definition THEN
             RAISE EXCEPTION 'immutable exercise revision conflicts with target content' USING ERRCODE='40001';
           END IF;
           SELECT coalesce(max(revision),0) INTO latest_revision FROM public.exercise_versions WHERE exercise_id=exercise_row.id;
           IF NOT FOUND THEN latest_revision:=0; END IF;
+          IF revision_number<latest_revision THEN
+            RAISE EXCEPTION 'older exercise revision cannot replace target history' USING ERRCODE='40001';
+          END IF;
           IF version_row.id IS NULL THEN
             IF revision_number<=latest_revision THEN RAISE EXCEPTION 'older exercise revision cannot replace target history' USING ERRCODE='40001'; END IF;
             SELECT engine_contract,generation_version,canonicalization_version INTO engine_row

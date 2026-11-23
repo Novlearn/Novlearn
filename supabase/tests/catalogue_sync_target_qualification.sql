@@ -13,7 +13,9 @@ DECLARE
   payloads jsonb; payload jsonb; receipt jsonb; replay jsonb; observation jsonb;
   conflict_batch uuid:='f5000000-0000-4000-8000-000000000002';
   conflict_chapter uuid:='f1000000-0000-4000-8000-000000000003';
-  conflict_items jsonb; stale_items jsonb; duplicate_items jsonb;
+  conflict_items jsonb; stale_items jsonb; duplicate_items jsonb; same_revision_item jsonb; same_revision_receipt jsonb;
+  revision_two_item jsonb; stale_revision_item jsonb; rename_item jsonb; rename_batch_items jsonb; rename_receipt jsonb;
+  renamed_exercise_definition jsonb;
   legacy_flashcard_policy text; flashcard_item jsonb; flashcard_receipt jsonb;
 BEGIN
   IF novlearn_admin_private.catalogue_sync_target_contract()<>'atomic-catalogue-target-v1' THEN
@@ -116,6 +118,88 @@ BEGIN
     RAISE EXCEPTION 'flashcard reference was not remapped';
   END IF;
 
+  -- A new lot carrying the same immutable revision is a no-op too. The first
+  -- import already created this version; only replaying the original batch id
+  -- is not sufficient to establish content-level idempotence.
+  same_revision_item:=jsonb_build_object('payload',(payloads->4)->'payload',
+    'inspection',novlearn_admin_private.inspect_catalogue_sync_item('exercise',exercise_a));
+  same_revision_receipt:=novlearn_admin_private.apply_catalogue_sync_batch(
+    'f5000000-0000-4000-8000-000000000005',repeat('f',64),jsonb_build_array(same_revision_item));
+  IF same_revision_receipt->'items'->0->>'result'<>'unchanged' OR
+     (SELECT count(*) FROM public.exercise_versions v JOIN public.exercises e ON e.id=v.exercise_id WHERE e.catalog_id=exercise_a)<>1 THEN
+    RAISE EXCEPTION 'existing immutable revision was not idempotent in a new batch';
+  END IF;
+
+  -- Publish revision two, then prove that importing revision one cannot move
+  -- the active pointer backward even when its immutable definition matches.
+  revision_two_item:=jsonb_build_object('payload',((payloads->4)->'payload')||jsonb_build_object(
+    'fingerprint',repeat('8',64),'versionId','f6000000-0000-4000-8000-000000000002','revision','2',
+    'data',((payloads->4)->'payload'->'data')||jsonb_build_object('revision',2,
+      'definition',((payloads->4)->'payload'->'data'->'definition')||jsonb_build_object('revision','2','title','Revision two title'))),
+    'inspection',novlearn_admin_private.inspect_catalogue_sync_item('exercise',exercise_a));
+  PERFORM novlearn_admin_private.apply_catalogue_sync_batch(
+    'f5000000-0000-4000-8000-000000000006',repeat('6',64),jsonb_build_array(revision_two_item));
+  stale_revision_item:=jsonb_build_object('payload',(payloads->4)->'payload',
+    'inspection',novlearn_admin_private.inspect_catalogue_sync_item('exercise',exercise_a));
+  BEGIN
+    PERFORM novlearn_admin_private.apply_catalogue_sync_batch(
+      'f5000000-0000-4000-8000-000000000007',repeat('7',64),jsonb_build_array(stale_revision_item));
+    RAISE EXCEPTION 'older exercise revision was accepted';
+  EXCEPTION WHEN SQLSTATE '40001' THEN NULL;
+  END;
+  IF (SELECT v.revision FROM public.exercises e JOIN public.exercise_versions v ON v.id=e.active_version_id
+      WHERE e.catalog_id=exercise_a)<>2 OR
+     novlearn_admin_private.observe_catalogue_sync_batch('f5000000-0000-4000-8000-000000000007',repeat('7',64))->>'state'<>'not_applied' THEN
+    RAISE EXCEPTION 'older revision changed the active version or left a receipt';
+  END IF;
+
+  -- A chapter rename with hidden dependents is rejected before writes. The
+  -- coordinated form succeeds only when all active textual references appear
+  -- in the lot, so its receipt reports every changed exercise and flashcard.
+  rename_item:=jsonb_build_object('payload',((payloads->0)->'payload')||jsonb_build_object(
+    'fingerprint',repeat('b',64),'data',((payloads->0)->'payload'->'data')||jsonb_build_object('name','Qualification chapter A renamed')),
+    'inspection',novlearn_admin_private.inspect_catalogue_sync_item('chapter',chapter_a));
+  BEGIN
+    PERFORM novlearn_admin_private.apply_catalogue_sync_batch(
+      'f5000000-0000-4000-8000-000000000008',repeat('8',64),jsonb_build_array(rename_item));
+    RAISE EXCEPTION 'chapter rename with unselected dependents was accepted';
+  EXCEPTION WHEN SQLSTATE '23503' THEN NULL;
+  END;
+  IF (SELECT name FROM public.chapters WHERE catalog_id=chapter_a)<>'Qualification chapter A' OR
+     (SELECT chapter FROM public.exercises WHERE catalog_id=exercise_a)<>'Qualification chapter A' OR
+     (SELECT chapter FROM public.flashcards WHERE catalog_id=flashcard_a)<>'Qualification chapter A' OR
+     novlearn_admin_private.observe_catalogue_sync_batch('f5000000-0000-4000-8000-000000000008',repeat('8',64))->>'state'<>'not_applied' THEN
+    RAISE EXCEPTION 'rejected chapter rename wrote partial changes';
+  END IF;
+
+  renamed_exercise_definition:=((payloads->4)->'payload'->'data'->'definition')||
+    jsonb_build_object('revision','3','title','Renamed chapter exercise revision');
+  rename_batch_items:=jsonb_build_array(
+    rename_item,
+    jsonb_build_object('payload',((payloads->4)->'payload')||jsonb_build_object(
+      'fingerprint',repeat('9',64),'versionId','f6000000-0000-4000-8000-000000000003','revision','3',
+      'data',((payloads->4)->'payload'->'data')||jsonb_build_object('revision',3,'definition',renamed_exercise_definition)),
+      'inspection',novlearn_admin_private.inspect_catalogue_sync_item('exercise',exercise_a)),
+    jsonb_build_object('payload',((payloads->3)->'payload')||jsonb_build_object('fingerprint',repeat('a',64)),
+      'inspection',novlearn_admin_private.inspect_catalogue_sync_item('flashcard',flashcard_a))
+  );
+  rename_receipt:=novlearn_admin_private.apply_catalogue_sync_batch(
+    'f5000000-0000-4000-8000-000000000009',repeat('9',64),rename_batch_items);
+  IF jsonb_array_length(rename_receipt->'items')<>3 OR
+     (SELECT name FROM public.chapters WHERE catalog_id=chapter_a)<>'Qualification chapter A renamed' OR
+     (SELECT chapter FROM public.exercises WHERE catalog_id=exercise_a)<>'Qualification chapter A renamed' OR
+     (SELECT chapter FROM public.flashcards WHERE catalog_id=flashcard_a)<>'Qualification chapter A renamed' OR
+     NOT EXISTS(SELECT 1 FROM public.exercises e JOIN public.exercise_versions v ON v.id=e.active_version_id
+       WHERE e.catalog_id=exercise_a AND v.revision=3 AND v.definition->'catalogue'->>'chapter'='Qualification chapter A renamed') OR
+     (SELECT definition->'catalogue'->>'chapter' FROM public.exercise_versions v JOIN public.exercises e ON e.id=v.exercise_id
+       WHERE e.catalog_id=exercise_a AND v.revision=1)<>'Qualification chapter A' OR
+     (SELECT count(*) FROM jsonb_array_elements(rename_receipt->'items'))<>3 OR
+     NOT EXISTS(SELECT 1 FROM jsonb_array_elements(rename_receipt->'items') x WHERE x->>'kind'='chapter') OR
+     NOT EXISTS(SELECT 1 FROM jsonb_array_elements(rename_receipt->'items') x WHERE x->>'kind'='exercise') OR
+     NOT EXISTS(SELECT 1 FROM jsonb_array_elements(rename_receipt->'items') x WHERE x->>'kind'='flashcard') THEN
+    RAISE EXCEPTION 'coordinated chapter rename omitted a changed item or rewrote published history';
+  END IF;
+
   -- Exercise update and archive under the legacy-policy replacement. These
   -- calls run through the same SECURITY DEFINER writer as the real import.
   flashcard_item:=jsonb_build_object('payload',((payloads->3)->'payload')||jsonb_build_object(
@@ -154,6 +238,11 @@ BEGIN
   IF EXISTS(SELECT 1 FROM public.chapters WHERE catalog_id=conflict_chapter) OR
      novlearn_admin_private.observe_catalogue_sync_batch(conflict_batch,repeat('c',64))->>'state'<>'not_applied' THEN
     RAISE EXCEPTION 'failed target lot left a row or receipt behind';
+  END IF;
+  IF (SELECT count(*) FROM public.exercise_versions v JOIN public.exercises e ON e.id=v.exercise_id WHERE e.catalog_id=exercise_a)<>3 OR
+     NOT EXISTS(SELECT 1 FROM public.flashcards WHERE catalog_id=flashcard_a AND admin_archived_at IS NOT NULL) OR
+     (SELECT count(*) FROM public.chapters WHERE catalog_id IN (chapter_a,chapter_b))<>2 THEN
+    RAISE EXCEPTION 'rename, archive or conflict unexpectedly deleted catalogue history';
   END IF;
 END;
 $qualification$;
