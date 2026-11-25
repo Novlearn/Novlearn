@@ -142,9 +142,10 @@ export async function GET(request: Request) {
       };
     } else {
       const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
-      let query = supabase
-        .from("exercises")
-        .select("id, title, app_title, chapter, difficulty, created_at");
+      const columns = "id, title, app_title, chapter, difficulty, created_at";
+      let query = supabase.from("exercises").select(
+        ref === PRODUCTION_REF ? columns : `${columns},playable:exercise_versions!exercise_versions_exercise_id_fkey!inner()`,
+      );
       if (ref === PRODUCTION_REF) {
         query = query.is("admin_archived_at", null);
         query = process.env.PRODUCTION_CATALOG_SYNC_ENFORCED === "true" ?
@@ -153,6 +154,10 @@ export async function GET(request: Request) {
       } else if (ref !== STAGING_REF && ref !== PRODUCTION_REF &&
           (process.env.APP_ENV ?? (process.env.NODE_ENV === "development" ? "development" : "")) !== "development") {
         throw new Error("Supabase environment is not recognized");
+      } else {
+        query = query.not("catalog_id", "is", null)
+          .is("admin_archived_at", null)
+          .in("playable.editorial_status", ["ready", "published"]);
       }
       const { data, error } = await query.order("created_at", { ascending: false });
 

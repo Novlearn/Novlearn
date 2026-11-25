@@ -54,6 +54,9 @@ def test_real_postgrest_builder_preserves_chapter_difficulty_and_id():
         available_exercises(client, "id").eq("chapter", "Chapter").eq("difficulty", "Facile").eq("id", 9).execute()
     params = requests[0].url.params
     assert params["catalog_id"] == "not.is.null"
+    assert params["admin_archived_at"] == "is.null"
+    assert params["playable.editorial_status"] == "in.(ready,published)"
+    assert "playable:exercise_versions!exercise_versions_exercise_id_fkey!inner()" in params["select"]
     assert params["chapter"] == "eq.Chapter"
     assert params["difficulty"] == "eq.Facile"
     assert params["id"] == "eq.9"

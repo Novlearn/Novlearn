@@ -10,6 +10,12 @@ vi.mock("@supabase/supabase-js", () => ({
         select: vi.fn(() => query),
         or: vi.fn((filter: string) => { state.filters.push(filter); return query; }),
         eq: vi.fn(() => query),
+        not: vi.fn(() => query),
+        is: vi.fn(() => query),
+        in: vi.fn((column: string, values: string[]) => {
+          state.filters.push(`${column}:${values.join(",")}`);
+          return query;
+        }),
         maybeSingle: vi.fn(async () => ({ data: table === "profiles" ? { role: state.role } : null, error: null })),
         single: vi.fn(async () => ({
           data: {
@@ -48,7 +54,7 @@ describe("GET /api/exercises access control", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.exercises[0]).not.toHaveProperty("content");
-    expect(state.filters).toEqual([]);
+    expect(state.filters).toEqual(["playable.editorial_status:ready,published"]);
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
 

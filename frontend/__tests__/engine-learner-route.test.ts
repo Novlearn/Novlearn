@@ -3,7 +3,7 @@ import type { ExerciseInstance, JsonObject } from "novlearn-exercise-engine";
 import definition from "./fixtures/engine-pilot-definition.json";
 import definitions from "./fixtures/engine-pilots.json";
 vi.mock("server-only", () => ({}));
-const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, canonical: true, shadow:false, index: 0, seed: 42, gradeOverride: null as any, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
+const state = vi.hoisted(() => ({ owner: "owner", role: "user", authError: false, active: true, versionStatus: null as "draft" | "ready" | null, canonical: true, shadow:false, index: 0, seed: 42, gradeOverride: null as any, rows: [] as any[], official: null as ExerciseInstance | null, calls: 0 }));
 vi.mock("node:crypto", async (original) => ({ ...await original<typeof import("node:crypto")>(), randomInt: () => state.seed }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ getAll: () => [], set: vi.fn() }) }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: vi.fn() }));
@@ -21,7 +21,10 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ auth: { getUser
                     if(state.shadow)(draft as any).extensions={legacy:{adapterVersion:"staging-catalogue-reviewed-v1"}};
                     const questionId=draft.elements.find(e=>e.type==='question'||e.type==='mcq')!.id;
                     draft.elements.push({id:"h",type:"hint",questionId,content:[{type:"text",text:"Une piste."}]} as any,{id:"e",type:"explanation",questionId,content:[{type:"text",text:"Un raisonnement privé."}]} as any);
-                    return [{ id: "version", definition:draft, definition_sha256: "a".repeat(64), editorial_status: state.active ? "published" : "draft" }];
+                    const rows = [{ id: "version", definition: draft, definition_sha256: "a".repeat(64), editorial_status: state.versionStatus ?? (state.active ? "published" : "ready") }];
+                    if (state.active && state.versionStatus)
+                        rows.push({ ...rows[0], id: "published-previous", editorial_status: "published" });
+                    return rows.filter(row => !Array.isArray(filters.editorial_status) || filters.editorial_status.includes(row.editorial_status)).slice(0, 1);
                 }
                 if (insertion) {
                     const row = { ...insertion, state: { questions: {} }, revision: 0, status: "active", expires_at: new Date(Date.now() + 86400000).toISOString() };
@@ -31,7 +34,7 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ auth: { getUser
                 }
                 return state.rows.filter(row => Object.entries(filters).every(([k, v]) => k === "gt" ? row.expires_at > v : k === "lt" ? row.expires_at < v : String(row[k]) === String(v)));
             };
-            const q: any = { select: () => q, eq: (k: string, v: any) => { filters[k] = v; return q; }, gt: (_k: string, v: any) => { filters.gt = v; return q; }, lt: (_k: string, v: any) => { filters.lt = v; return q; }, order: () => q, limit: () => q, insert: (v: any) => { insertion = v; return q; }, single: async () => ({ data: data(), error: null }), maybeSingle: async () => { const v = data(); return { data: Array.isArray(v) ? v[0] ?? null : v, error: null }; }, then: (resolve: any) => resolve({ data: data(), error: null }) };
+            const q: any = { select: () => q, in: (k: string, v: string[]) => { filters[k] = v; return q; }, eq: (k: string, v: any) => { filters[k] = v; return q; }, gt: (_k: string, v: any) => { filters.gt = v; return q; }, lt: (_k: string, v: any) => { filters.lt = v; return q; }, order: () => q, limit: () => q, insert: (v: any) => { insertion = v; return q; }, single: async () => ({ data: data(), error: null }), maybeSingle: async () => { const v = data(); return { data: Array.isArray(v) ? v[0] ?? null : v, error: null }; }, then: (resolve: any) => resolve({ data: data(), error: null }) };
             return q;
         }, rpc: async (_name: string, args: any) => { const row = state.rows.find(r => r.id === args.p_id && r.owner_id === args.p_owner); if (!row || row.revision !== args.p_revision)
             return { error: { code: "40001" } }; row.state = structuredClone(args.p_state); row.status = args.p_status; row.revision++; return { data: {}, error: null }; }
@@ -68,7 +71,7 @@ it("refuses resuming or grading snapshots from another archive",async()=>{
     expect((await handleLearnerExercise(req({action:"skip",sessionId:opened.session.sessionId}))).status).toBe(200);
 });
 const req = (body: any, origin = "http://127.0.0.1:3000") => new Request("http://127.0.0.1:3000/api/exercises", { method: "PATCH", headers: { origin, authorization: "Bearer synthetic", "content-type": "application/json" }, body: JSON.stringify(body) });
-beforeEach(() => { vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("VERCEL", ""); vi.stubEnv("NOVLEARN_ENGINE_PILOTS_ENABLED", "true"); vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://tksvbkvfusrnxulpahky.supabase.co"); vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://127.0.0.1:3000"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_synthetic"); vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJub25lIn0." + Buffer.from(JSON.stringify({ ref: "tksvbkvfusrnxulpahky", role: "service_role" })).toString("base64url") + ".synthetic"); state.rows = []; state.calls = 0; state.owner = "owner"; state.role = "user"; state.authError = false; state.active = true; state.canonical = true; });
+beforeEach(() => { vi.stubEnv("NODE_ENV", "development"); vi.stubEnv("VERCEL", ""); vi.stubEnv("NOVLEARN_ENGINE_PILOTS_ENABLED", "true"); vi.stubEnv("NOVLEARN_ENGINE_ENABLED", "true"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://tksvbkvfusrnxulpahky.supabase.co"); vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://127.0.0.1:3000"); vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_synthetic"); vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJub25lIn0." + Buffer.from(JSON.stringify({ ref: "tksvbkvfusrnxulpahky", role: "service_role" })).toString("base64url") + ".synthetic"); state.rows = []; state.calls = 0; state.owner = "owner"; state.role = "user"; state.authError = false; state.versionStatus = null; state.active = true; state.canonical = true; });
 afterEach(() => vi.unstubAllEnvs());
 it.each([
     ["NODE_ENV","production"],
@@ -94,7 +97,23 @@ it("requires canonical migration before opening an exercise, including for Admin
     expect(state.calls).toBe(0);
 });
 it("refuses legacy catalogue delivery through the Engine API", async () => { state.canonical = false; const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" })); expect(r.status).toBe(422); expect(state.calls).toBe(0); });
-it("keeps Staging drafts available but refuses forged verdict/snapshot fields", async () => { state.active = false; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(200); expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122", official: {} }))).status).toBe(400); });
+it("opens an approved Staging revision with no published revision and refuses forged snapshots", async () => {
+    state.active = false;
+    expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(200);
+    expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122", official: {} }))).status).toBe(400);
+});
+it("ignores a newer draft in Staging and keeps the published revision playable", async () => {
+    state.versionStatus = "draft";
+    const response = await handleLearnerExercise(req({ action: "open", exerciseId: "122" }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).session.versionId).toBe("published-previous");
+});
+it("does not open a draft-only Staging exercise", async () => {
+    state.active = false;
+    state.versionStatus = "draft";
+    expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(404);
+    expect(state.calls).toBe(0);
+});
 it("refuses foreign origins and invalid authentication", async () => { expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }, "https://other.test"))).status).toBe(403); state.authError = true; expect((await handleLearnerExercise(req({ action: "open", exerciseId: "122" }))).status).toBe(401); });
 it("generates once, exposes only the projection and restores the stored instance", async () => {
     const r = await handleLearnerExercise(req({ action: "open", exerciseId: "122" }));

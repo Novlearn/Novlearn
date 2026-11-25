@@ -213,6 +213,7 @@ function setExercisesResult(exercises: unknown[], error: unknown = null, version
       return exerciseChain;
     }),
     eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
     then: (onFulfilled: (v: unknown) => unknown) => Promise.resolve(result).then(onFulfilled),
     catch: (onRejected: (e: unknown) => unknown) => Promise.resolve(result).catch(onRejected),
     finally: (cb: () => void) => Promise.resolve(result).finally(cb),
@@ -235,21 +236,21 @@ describe("getRandomExercise / Engine only",()=>{
     setExercisesResult([row],null,[version]);
     expect(await getRandomExercise(7)).toEqual({row,versionId:"v1",variables:{}});
   });
-  it("rejects legacy exercises and accepts Staging drafts even when Engine flag is disabled",async()=>{
+  it("rejects legacy exercises and accepts Staging approvals even when Engine flag is disabled",async()=>{
     vi.stubEnv("NOVLEARN_ENGINE_ENABLED","false");
     for(const candidate of [{...row,catalog_id:null}]){
       setExercisesResult([candidate],null,[version]);
       await expect(getRandomExercise(7)).rejects.toThrow("No exercises available");
     }
-    setExercisesResult([{...row,active_version_id:null}],null,[{...version,editorial_status:"draft"}]);
+    setExercisesResult([{...row,active_version_id:null}],null,[{...version,editorial_status:"ready"}]);
     await expect(getRandomExercise(7)).resolves.toMatchObject({versionId:"v1"});
   });
-  it("refuses incompatible elements but accepts a Staging draft version",async()=>{
+  it("refuses incompatible elements and ignores newer drafts",async()=>{
     for(const candidate of [{...version,elements:[{type:"mcq"}]}]){
       setExercisesResult([row],null,[candidate]);
       await expect(getRandomExercise(7)).rejects.toThrow("No exercises available");
     }
-    setExercisesResult([row],null,[{...version,editorial_status:"draft"}]);
+    setExercisesResult([row],null,[{...version,id:"draft-v2",editorial_status:"draft"},version]);
     await expect(getRandomExercise(7)).resolves.toMatchObject({versionId:"v1"});
   });
   it("fails closed when version lookup fails",async()=>{
@@ -265,12 +266,12 @@ describe("getRandomExercise / Engine only",()=>{
 describe("reserveDuelExercises",()=>{
   it("pins each selected Staging revision before the duel starts",async()=>{
     const row={id:14,title:"Exercice",catalog_id:"catalog-14",active_version_id:null};
-    const version={id:"draft-v3",exercise_id:14,revision:3,editorial_status:"draft",elements:[{type:"question"}]};
+    const version={id:"ready-v3",exercise_id:14,revision:3,editorial_status:"ready",elements:[{type:"question"}]};
     setExercisesResult([row],null,[version]);
     await expect(reserveDuelExercises(42)).resolves.toBeUndefined();
     const fromCalls=mockFrom.mock.calls as unknown as Array<[string]>;
     const reservations=mockFrom.mock.results.find((_,index)=>fromCalls[index][0]==="duel_catalog_reservations")?.value;
-    expect(reservations.insert).toHaveBeenCalledWith([{duel_id:42,exercise_id:14,exercise_version_id:"draft-v3"}]);
+    expect(reservations.insert).toHaveBeenCalledWith([{duel_id:42,exercise_id:14,exercise_version_id:"ready-v3"}]);
   });
 });
 

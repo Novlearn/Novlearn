@@ -147,7 +147,7 @@ async function listEligibleDuelExercises(): Promise<Array<{ row: ExerciseRow; ve
     .eq("Is_Flash", true)
     .eq("Need_Calculator", false);
   if (APP_ENV === "staging" || APP_ENV === "development") {
-    exercises = exercises.not("catalog_id", "is", null);
+    exercises = exercises.not("catalog_id", "is", null).is("admin_archived_at", null);
   } else if (APP_ENV === "production" && PRODUCTION_CATALOG_SYNC_ENFORCED) {
     exercises = exercises.not("active_version_id", "is", null).is("admin_archived_at", null);
   } else {
@@ -169,7 +169,7 @@ async function listEligibleDuelExercises(): Promise<Array<{ row: ExerciseRow; ve
     if (versions.error) throw new Error("Duel exercise versions unavailable");
     for (const version of versions.data ?? []) {
       if (staging && selectedVersionByExercise.has(version.exercise_id)) continue;
-      if ((staging || version.editorial_status === "published") && supportsDuelElements(version.elements) &&
+      if ((version.editorial_status === "published" || (staging && version.editorial_status === "ready")) && supportsDuelElements(version.elements) &&
           canonical.some(e => e.id === version.exercise_id && (staging || (e.active_version_id || e.legacy_version_id) === version.id))) {
         selectedVersionByExercise.set(version.exercise_id, version.id);
       }

@@ -253,13 +253,15 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 const selectedVersion = parent.active_version_id ||
                     (process.env.PRODUCTION_CATALOG_SYNC_ENFORCED !== "true" ? parent.legacy_version_id : null);
                 const preview = staging;
-                if (!staging && (parent.admin_archived_at || !selectedVersion))
+                if (parent.admin_archived_at || (!staging && !selectedVersion))
                     throw new EngineError(404, "Exercice indisponible.");
                 let query = admin.from("exercise_versions").select("id,definition,definition_sha256,editorial_status").eq("exercise_id", parent.id);
-                query = preview ? query.order("revision", { ascending: false }).limit(1) : query.eq("id", selectedVersion);
+                query = staging
+                    ? query.in("editorial_status", ["ready", "published"]).order("revision", { ascending: false }).limit(1)
+                    : query.eq("id", selectedVersion).eq("editorial_status", "published");
                 const versions = checked(await query);
                 const version = versions?.[0];
-                if (!version || (!staging && !preview && version.editorial_status !== "published"))
+                if (!version || (version.editorial_status !== "published" && !(staging && version.editorial_status === "ready")))
                     throw new EngineError(404, "Version indisponible.");
                 const mode = ["practice", "placement", "ds"].includes(body.mode) ? body.mode : "practice";
                 if (mode === "placement")
@@ -275,7 +277,7 @@ export async function handleLearnerExercise(request: Request, authOnly = false) 
                 for (const old of expired)
                     await transition(admin, old, "abandoned");
                 const previous = checked(await admin.from("engine_exercise_sessions").select("*").eq("owner_id", user.id).eq("exercise_id", parent.id).eq("status", "active").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10)) as Saved[];
-                const existing = previous.find(s => s.metadata.engineArtifactSha256 === ENGINE_ARTIFACT_SHA256 && s.metadata.mode === mode && s.metadata.dsId === (body.dsId ?? null));
+                const existing = previous.find(s => s.exercise_version_id === version.id && s.metadata.engineArtifactSha256 === ENGINE_ARTIFACT_SHA256 && s.metadata.mode === mode && s.metadata.dsId === (body.dsId ?? null));
                 if (existing)
                     return { kind: "engine", session: view(existing) };
                 const capacity=await admin.from("engine_exercise_sessions").select("id",{count:"exact",head:true}).eq("owner_id",user.id).eq("status","active").gt("expires_at",new Date().toISOString());
