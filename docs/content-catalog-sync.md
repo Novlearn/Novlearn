@@ -75,3 +75,17 @@ Le projet Supabase Staging ne permet pas de créer une branche isolée avec son 
 Le SQL source n’accepte `uncertain → failed` qu’avec `p_error='not_applied'`, valeur réservée à la preuve d’une observation négative fiable de la cible sous verrou. Le service Admin conserve encore une garde locale qui empêche cette transition; il devra la retirer avant de pouvoir clôturer ainsi un lot incertain. Aucun fichier du dépôt Admin n’est modifié par cette mission.
 
 Le contrat cible est qualifié par `supabase/tests/run_catalogue_sync_target_pglite.mjs` et `supabase/tests/catalogue_sync_target_qualification.sql`. La suite couvre le réimport d’une même révision dans un nouveau lot, deux lots concurrents visant la même identité et inspection, le conflit de contenu pour une révision existante, le refus d’une révision ancienne, les privilèges de lecture sans `SELECT FOR UPDATE`, le renommage coordonné ou refusé d’un chapitre, l’immutabilité des versions, les archives et le rollback atomique sans suppression. Elle couvre aussi l’ancienne politique de flashcards, le reçu durable et son rejeu, le refus d’un digest différent, les dépendances absentes, la reconstruction d’en-tête depuis la révision choisie et l’archive absente sans création de ligne. PGlite exécute les appels concurrents sur une connexion unique; la qualification de concurrence PostgreSQL à sessions distinctes reste à exécuter si une base locale jetable devient disponible. Pour la qualification précédente, le même scénario a été exécuté sur PostgreSQL 17.11 isolé avec les migrations canoniques, contraintes, triggers et politique historique réelle. `supabase/tests/catalogue_sync_source_export_qualification.sql` reproduit `42P01` avant la migration corrective, puis contrôle les exports prêt et archivé, le refus non-admin et l’empreinte périmée après correction. Staging a ensuite exporté un chapitre prêt et un chapitre archivé dans une transaction annulée; aucune ligne temporaire ne subsiste. Ces exécutions ne constituent pas une installation de capacité cible sur un projet Supabase géré; le marqueur reste absent de Staging et Production.
+
+## Catalogue jouable en Staging
+
+NovLearn ouvre la révision la plus récente parmi les révisions approuvées
+(`ready`) ou publiées (`published`) d’un exercice. Les nouvelles sélections
+excluent les brouillons et exercices archivés. Les duels conservent leurs
+contraintes de format et épinglent la version choisie dans la réservation.
+Les sessions déjà ouvertes peuvent reprendre leur instantané par identifiant.
+
+La migration `20261125195000_staging_approved_exercise_readers.sql` aligne la
+visibilité des métadonnées par le navigateur sur ces règles en Staging. La
+lecture des définitions et des réponses reste réservée aux serveurs autorisés.
+Côté Production, le lecteur canonique continue d’exiger une révision publiée.
+La livraison d’une version approuvée passe par la synchronisation du catalogue.

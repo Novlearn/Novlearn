@@ -9,9 +9,15 @@ LEGACY_PRODUCTION_FILTER = "catalog_id.is.null,active_version_id.not.is.null,leg
 
 
 def available_exercises(client: Any, columns: str) -> Any:
-    query = client.table("exercises").select(columns)
     if settings.app_env in {"development", "test", "staging"}:
-        return query.filter("catalog_id", "not.is", "null")
+        return (
+            client.table("exercises")
+            .select(f"{columns},playable:exercise_versions!exercise_versions_exercise_id_fkey!inner()")
+            .filter("catalog_id", "not.is", "null")
+            .filter("admin_archived_at", "is", "null")
+            .in_("playable.editorial_status", ["ready", "published"])
+        )
+    query = client.table("exercises").select(columns)
     if os.getenv("PRODUCTION_CATALOG_SYNC_ENFORCED") == "true":
         return query.filter("active_version_id", "not.is", "null").filter("admin_archived_at", "is", "null")
     # Keep the historical Production catalogue until the separately controlled

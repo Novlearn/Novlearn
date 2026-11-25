@@ -60,7 +60,7 @@ export async function prepareEngineRound(row: ExerciseRow, duelId: number, round
     if (reservation.error || !reservation.data) throw new Error("Duel reservation unavailable");
     versionQuery = versionQuery.eq("id", selectedVersionId);
     const version = await versionQuery.single();
-    if (version.error || !version.data || (!staging && version.data.editorial_status !== "published"))
+    if (version.error || !version.data || (version.data.editorial_status !== "published" && !(staging && version.data.editorial_status === "ready")))
         throw new Error("Unpublished version");
     if (!supportsDuelElements(version.data.definition?.elements))
         throw new Error("Exercise incompatible with duel presentation");
